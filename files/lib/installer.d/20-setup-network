@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+. /lib/libinstaller.sh
+
+info "Setting up network with dhcp"
+
+if ! a_get duck/mode; then
+    error "Failed to get duck/mode"
+    exit 1
+fi
+
+MODE="$RET"
+
+if [[ "$MODE" == "testing" ]]; then
+    warning "Skipping network configuration, duck/mode=testing"
+    exit 0
+fi
+
+if ! dhcpcd eth0; then
+    error "Network setup failed"
+    exit 1
+fi
+
+exit 0

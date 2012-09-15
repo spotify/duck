@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+. /lib/libinstaller.sh
+
+info "Setting autodb variables"
+
+if ! a_cmdline; then
+    error "Failed to set kernel arguments"
+    exit 1
+fi
+
+exit 0

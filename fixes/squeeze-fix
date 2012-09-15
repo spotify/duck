@@ -1,0 +1,14 @@
+#!/bin/sh
+# fix for dash hooks that does not run properly on it's own.
+# http://wiki.debian.org/Multistrap#Steps_for_Squeeze_and_later
+
+set -e
+
+case "$1" in
+    "pre")
+        /var/lib/dpkg/info/dash.preinst install
+        ;;
+    *) ;;
+esac
+
+exit 0

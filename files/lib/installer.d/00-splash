@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -e
+
+. /lib/libinstaller.sh
+
+timeout=3
+
+cat - <<ENDL
+               _              
+            .-' '-.           
+          .'       '.         
+         :-._o) (o_.-:        
+        (    /   \    )       
+         '-.'     '.-'        
+           '.   .'            
+             i\ /i            
+       .    :  '  :    .      
+        "\. :     : ./"       
+          \\|     |//         
+         .' :     : '.        
+      .-'  :       :  '-.     
+     : i .'         '. i :    
+    :   :             :   :   
+    :  .'             '.  :   
+     :/                 \:    
+      '.               .'     
+        '-._________.-'       
+                              
+      | You are Ducked! |     
+
+ENDL
+
+timeout_with $timeout "Installation starting in..."
+
+reset

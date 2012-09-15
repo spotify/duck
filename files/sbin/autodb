@@ -1,0 +1,193 @@
+#!/usr/bin/python
+#
+# AutoDB is used to store autoinstaller variables.
+#
+
+import dbm
+
+DB = "/var/autodb.dbm"
+
+
+def usage():
+    print "usage: autodb <action> ..."
+    print "  actions:"
+    print "    set <key> <value> - Set <key> as <value>"
+    print "    get <key>         - Get <key>"
+    print "    list              - List all keys and values"
+    print "    cmdline <path>    - Read kernel commandline from path"
+    print "    file <path>       - Read variables from path"
+    print "    url <url>         - Read variables from url"
+
+
+def action_get(args):
+    if len(args) < 1:
+        usage()
+        return 1
+
+    if len(args) > 1:
+        default = args[1]
+    else:
+        default = None
+
+    key = args[0]
+
+    db = dbm.open(DB, "c")
+
+    try:
+        print "RET=\"%s\";" % (db[key])
+    except KeyError:
+        if default is None:
+            return 1
+        print "RET=\"%s\";" % (default)
+    finally:
+        db.close()
+
+    return 0
+
+
+def action_set(args):
+    if len(args) != 2:
+        usage()
+        return 1
+
+    key = args[0]
+    value = args[1]
+
+    db = dbm.open(DB, "c")
+
+    try:
+        db[key] = value
+    finally:
+        db.close()
+
+    return 0
+
+
+def action_cmdline(args):
+    if len(args) != 1:
+        usage()
+        return 1
+
+    path = args[0]
+
+    cmd = open(path)
+
+    try:
+        cmdline = cmd.read()
+    finally:
+        cmd.close()
+
+    db = dbm.open(DB, "c")
+
+    try:
+        for c in cmdline.split(" "):
+            c = c.strip()
+
+            if not c:
+                continue
+
+            if "/" not in c:
+                continue
+
+            key, value = c.split("=", 2)
+            db[(key)] = value
+    finally:
+        db.close()
+
+    return 0
+
+
+def action_list(args):
+    if len(args) != 0:
+        usage()
+        return
+
+    db = dbm.open(DB, "c")
+
+    try:
+        for key in db.keys():
+            print key, db[key]
+    finally:
+        db.close()
+
+
+def read_config_from_file(db, fp):
+    for line in fp.readlines():
+        line = line.strip()
+
+        if line.startswith("#") or not line:
+            continue
+
+        key, value = line.split(" ", 2)
+        db[key] = value
+
+
+def action_file(args):
+    if len(args) != 1:
+        usage()
+        return 1
+
+    path = args[0]
+
+    path_fd = open(path)
+    db = dbm.open(DB, "c")
+
+    try:
+        read_config_from_file(db, path_fd)
+    finally:
+        path_fd.close()
+        db.close()
+
+    return 0
+
+
+def action_url(args):
+    import urllib2
+
+    if len(args) != 1:
+        usage()
+        return 1
+
+    url = args[0]
+
+    url_fd = urllib2.urlopen(url)
+
+    db = dbm.open(DB, "c")
+
+    try:
+        read_config_from_file(db, url_fd)
+    finally:
+        url_fd.close()
+        db.close()
+
+    return 0
+
+
+actions = {
+    "get": action_get,
+    "set": action_set,
+    "list": action_list,
+    "cmdline": action_cmdline,
+    "file": action_file,
+    "url": action_url,
+}
+
+
+def main(args):
+    if len(args) < 1:
+        usage()
+        return 1
+
+    action = args[0]
+
+    action_func = actions.get(action)
+
+    if action_func is None:
+        print >>sys.stderr, "no such action: %s" % (action)
+        return 1
+
+    return action_func(args[1:])
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main(sys.argv[1:]))

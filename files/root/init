@@ -1,0 +1,9 @@
+#!/bin/sh
+
+echo "Invocing INIT"
+
+exec /sbin/init
+
+# this will only be run if init cannot be run for some reason.
+echo "System init failed, starting /bin/sh"
+exec /bin/sh

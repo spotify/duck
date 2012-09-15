@@ -1,0 +1,22 @@
+# <source> <target> [<owner> [<mode>]]
+
+# init file
+root/init /
+
+# target inittab
+etc/* /etc root 0644
+
+# autologin program
+sbin/autologin /sbin
+
+# autodb program
+sbin/autodb /sbin
+
+# main installer
+sbin/autoinstaller /sbin
+
+# installer library
+lib/libinstaller.sh /lib root 0644
+
+# installation steps
+lib/installer.d/* /lib/installer.d

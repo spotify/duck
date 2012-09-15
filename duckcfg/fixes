@@ -1,0 +1,6 @@
+# file contains scripts that should be run to fix the target environment.
+# scripts are located under <out>/fixes
+squeeze-fix
+
+# disable initrd generation and grub setup for installed kernels.
+kernel-boot-fix

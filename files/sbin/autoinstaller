@@ -1,0 +1,18 @@
+#!/bin/bash
+
+. /lib/libinstaller.sh
+
+info "Autoinstaller version 0.1"
+
+a_get duck/log "$default_log"
+log="$RET"
+
+if [[ -f $installer_status ]]; then
+    info "Not running installation, $installer_status exists"
+else
+    info "Running installation, logging to $log"
+    run_installer | tee -a $log
+    touch $installer_status
+fi
+
+exec /sbin/autologin

@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -e
+
+status_code=0
+
+case "$1" in
+    "pre")
+        while read name _; do
+            case "$name" in
+                linux-image-*-dbg) continue ;;
+                linux-image-*)  ;;
+                *) continue ;;
+            esac
+
+            path="/var/lib/dpkg/info/$name.postinst"
+
+            if ! grep -E 'my \$initrd\s+=\s+"YES";' $path; then
+                echo "initrd already disabled: $name"
+                continue
+            fi
+
+            cp -a $path $path.original
+
+            echo "disabling initrd for: $name"
+
+            if ! sed -r -i 's/my \$initrd\s+=\s+"YES";/my $initrd = "";/' $path; then
+                echo "failed to patch: $path"
+                exit 1
+            fi
+        done < <(dpkg --get-selections)
+        ;;
+    "post")
+        echo "clearing /boot"
+        rm -rf /boot
+        ;;
+esac
+
+exit 0

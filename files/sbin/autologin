@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo "(press 'enter' to login)"
+read
+
+exec /bin/login -f root

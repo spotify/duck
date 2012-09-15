@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+. /lib/libinstaller.sh
+
+if [[ ! -d $target ]]; then
+    error "Target does not exist: $target"
+    exit 1
+fi
+
+exec multistrap -f /usr/lib/multistrap.conf -d /target

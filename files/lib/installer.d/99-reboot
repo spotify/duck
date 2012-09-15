@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+. /lib/libinstaller.sh
+
+info "Installation done, rebooting!"
+
+if ! a_get duck/mode; then
+    error "Failed to get duck/mode"
+    exit 1
+fi
+
+MODE="$RET"
+
+case "$MODE" in
+    "testing")
+        warning "Not rebooting, duck/mode=testing"
+        ;;
+    *)
+        reboot
+        ;;
+esac
+
+exit 0
