@@ -1,23 +1,33 @@
 #!/bin/bash
 
-OUT=$PWD
-
-SHARED_ROOT="/usr/share/duck"
-SCRIPT_ROOT="$(dirname $(dirname $(realpath $0)))"
-
-# root alternatives
-roots[0]="$SHARED_ROOT"
-roots[1]="$SCRIPT_ROOT"
-roots[2]="$PWD"
-
-ROOT=""
-CFGDIR=""
+SCRIPT_PARENT="$(dirname $(dirname $(realpath $0)))"
 
 notice()  { echo "N: $@" 1>&2; }
 error()   { echo "E: $@" 1>&2; }
 warning() { echo "W: $@" 1>&2; }
 
-read_config_lines() {
+look_for() {
+    # look for a specific command.
+    # exports COMMAND containing command path if found.
+    command=$1
+
+    export COMMAND=""
+
+    while read -d ':' path; do
+        [[ -x "$path/$command" ]] && COMMAND="$path/$command" && break
+    done <<< "$DUCK_PATH"
+
+    if [[ -z $COMMAND ]]; then
+        error "command not found: $command"
+        return 1
+    fi
+
+    export COMMAND="$COMMAND"
+
+    return 0
+}
+
+readcfgs() {
     # helper function to read configuration lines from several places at once.
     files="$@"
     i=0
@@ -35,15 +45,21 @@ read_config_lines() {
     fi
 }
 
-for p in ${roots[@]}; do
-    CFGDIR="$p/files"
-    [[ -d $CFGDIR ]] && ROOT="$p" && break
-done
+find_duck_home() {
+    # root alternatives
+    [ ! -z "$DUCK_HOME" ] && homes[0]="$DUCK_HOME"
+    homes[1]="/usr/share/duck"
+    homes[2]="/usr/local/share/duck"
+    homes[3]="$SCRIPT_PARENT"
 
-if [[ -z "$ROOT" ]]; then
-    error "could not determine duck root, should be one of ${roots[@]}"
-    exit 1
-fi
+    for p in ${homes[@]}; do
+        [[ ! -d "$p/duckcfg" ]] && continue
+        export DUCK_HOME="$p"
+        return 0
+    done
+
+    return 1
+}
 
 DUCK_PATH=${DUCK_PATH:="$PATH:/sbin:/usr/sbin:/usr/local/sbin"}
 
@@ -56,7 +72,7 @@ cpio=cpio
 multistrap=multistrap
 
 # runned action
-default_action="setup"
+default_action="build"
 
 # shell
 o_shell=/bin/sh
@@ -64,12 +80,10 @@ o_shell=/bin/sh
 # force a base system update
 o_update="no"
 
-# output path to initrd
-o_dir="$PWD"
-
+# working directory.
+o_dir=""
 # command to run when doing stuff as root.
 o_root_cmd=""
-
 # commands that have default values, set in read_opts.
 # directory to orchestrate initrd building.
 o_target=""
@@ -88,9 +102,10 @@ usage: duck [action]
 
 Duck is an automated installation builder system.
 
+  -d <out>    : Specify where to write packed initrd (default: pwd).
+  -r          : Use 'sudo' instead of fakeroot when building images.
   -t <target> : Specify target directory to build install image in.
   -s <shell>  : Specify which shell to use (default: $o_shell).
-  -d <out>    : Specify where to write packed initrd (default: <pwd>).
   -i <initrd> : Specify which shell to use (default: <out>/initrd.gz).
   -k <kernel> : Specify which shell to use (default: <out>/vmlinuz).
   -t <target> : Manually specify where to build initrd target.
@@ -99,8 +114,8 @@ Duck is an automated installation builder system.
   -u          : Update the base system, even if directory already exists.
 
 action is one of:
-  setup : Setup initrd.
-  enter : Enter initrd.
+  build : Build initrd.
+  enter : Enter initrd (requires that it has been built).
   pack  : Pack the initrd.
   qemu  : Start a QEMU instance to test the generated initrd.
 ENDL
@@ -113,7 +128,7 @@ in_target_fix() {
     name=$1
     action=$2
 
-    [[ -f $ROOT/fixes/$name ]] && scripts[0]=$ROOT/fixes/$name
+    [[ -f $DUCK_HOME/fixes/$name ]] && scripts[0]=$DUCK_HOME/fixes/$name
     [[ -f $o_dir/fixes/$name ]] && scripts[1]=$o_dir/fixes/$name
 
     if [[ -z ${scripts[@]} ]]; then
@@ -131,9 +146,8 @@ in_target_fix() {
     for script in ${scripts[@]}; do
         notice "target: <$script>"
 
-        cp -a $script $outer_b
-
         (
+            $o_root_cmd cp -a $script $outer_b
             source $o_fakechroot_env;
             $o_root_cmd $chroot $o_target $o_shell -c "exec $b $action"
         )
@@ -175,7 +189,7 @@ install_file() {
     spath=${original_spath#/*}
     tpath=${original_tpath#/*}
 
-    [[ -d $ROOT/files ]] && sources[0]=$ROOT/files/$source_path
+    [[ -d $DUCK_HOME/files ]] && sources[0]=$DUCK_HOME/files/$source_path
     [[ -d $o_dir/files ]] && sources[1]=$o_dir/files/$source_path
 
     target_dir=$o_target/$tpath
@@ -191,10 +205,10 @@ install_file() {
     return $?
 }
 
-fix_target() {
+run_target_fixes() {
     action=$1
 
-    f[0]=$ROOT/duckcfg/fixes
+    f[0]=$DUCK_HOME/duckcfg/fixes
     f[1]=$o_dir/duckcfg/fixes
 
     fixes=$o_target/.fixes
@@ -218,7 +232,7 @@ fix_target() {
         fi
 
         echo "$name" >> $fixes
-    done < <(read_config_lines "${f[@]}")
+    done < <(readcfgs "${f[@]}")
 
     return $status_code
 }
@@ -266,7 +280,7 @@ configure_service() {
 }
 
 enable_boot_services() {
-    conf[0]=$ROOT/duckcfg/services
+    conf[0]=$DUCK_HOME/duckcfg/services
     conf[1]=$o_dir/duckcfg/services
 
     while true; do
@@ -279,7 +293,7 @@ enable_boot_services() {
         if ! configure_service "$service" "$start" "$stop"; then
             return 1
         fi
-    done < <(read_config_lines "${conf[@]}")
+    done < <(readcfgs "${conf[@]}")
 
     return 0
 }
@@ -292,7 +306,7 @@ system_bootstrap() {
         return 0
     fi
 
-    if ! check_command $multistrap; then
+    if ! look_for $multistrap; then
         return 1
     fi
 
@@ -303,7 +317,7 @@ system_bootstrap() {
     notice "setting up base system"
 
     if ! $o_root_cmd $multistrap_path -d $o_target -f $o_multistrap_config; then
-        error "failed to setup base system"
+        error "failed to build base system"
         return 1
     fi
 
@@ -316,27 +330,50 @@ system_bootstrap() {
 }
 
 install_files() {
-    conf[0]=$ROOT/duckcfg/files
+    conf[0]=$DUCK_HOME/duckcfg/files
     conf[1]=$o_dir/duckcfg/files
 
     while read source_path target_path owner mode; do
         install_file $source_path $target_path $owner $mode
-    done < <(read_config_lines "${conf[@]}")
+    done < <(readcfgs "${conf[@]}")
 
     return 0
 }
 
 action_setup() {
+    dir[0]=$o_dir/duckcfg
+    dir[1]=$o_dir/files
+    dir[2]=$o_dir/fixes
+
+    for d in ${dir[@]}; do
+        notice "making: $d"
+
+        if ! mkdir -p $d; then
+            error "mkdir failed: $d"
+            return 1
+        fi
+    done
+
+    notice "copying basic multistrap config"
+    if ! cp $DUCK_HOME/duckcfg/multistrap.conf $o_dir/duckcfg/multistrap.conf; then
+        error "could not copy multistrap config"
+        return 1
+    fi
+
+    return 0
+}
+
+action_build() {
     notice "setting up system with multistrap"
 
     if ! system_bootstrap; then
-        error "failed to setup system with multistrap"
+        error "failed to build system with multistrap"
         return 1
     fi
 
     notice "pre-patching target system:"
 
-    if ! fix_target "pre"; then
+    if ! run_target_fixes pre; then
         error "problem pre-patching"
         return 1;
     fi
@@ -357,7 +394,7 @@ action_setup() {
 
     notice "post-patching target system:"
 
-    if ! fix_target "post"; then
+    if ! run_target_fixes post; then
         error "problem post-patching"
         return 1;
     fi
@@ -381,7 +418,7 @@ action_setup() {
 }
 
 action_enter() {
-    if ! check_command "$chroot"; then
+    if ! look_for "$chroot"; then
         return 1
     fi
 
@@ -412,16 +449,38 @@ action_pack() {
     return 0
 }
 
+find_kernel() {
+    export KERNEL=""
+
+    for p in /boot/*kernel*; do
+        if ! file $p | grep "Linux kernel"; then
+            continue
+        fi
+
+        export KERNEL="$p"
+        return 0
+    done
+
+    return 1
+}
+
 action_qemu() {
     if [[ ! -f $o_kernel ]]; then
-        error "expected kernel at: $o_kernel"
-        return 1
+        notice "trying to find a kernel"
+
+        if ! find_kernel; then
+            error "could not find a kernel to copy to: $o_kernel"
+            return 1
+        fi
+
+        notice "using kernel: $KERNEL"
+        o_kernel="$KERNEL"
     fi
 
     opts="-serial stdio -m 512 -curses"
     opts="$opts -append duck/mode=testing"
 
-    if ! check_command $qemu; then
+    if ! look_for $qemu; then
         return 1
     fi
 
@@ -433,25 +492,6 @@ action_qemu() {
         $opts
 
     return $?
-}
-
-check_command() {
-    command=$1
-
-    COMMAND=""
-
-    while read -d ':' path; do
-        [[ -x "$path/$command" ]] && COMMAND="$path/$command" && break
-    done <<< "$DUCK_PATH"
-
-    if [[ -z $COMMAND ]]; then
-        error "command not found: $command"
-        return 1
-    fi
-
-    export COMMAND="$COMMAND"
-
-    return 0
 }
 
 read_opts() {
@@ -477,23 +517,24 @@ read_opts() {
         esac
     done
 
+    [[ -z "$o_dir" ]] && o_dir="$PWD"
     [[ -z "$o_target" ]] && o_target="$o_dir/tmp/initrd"
     [[ -z "$o_initrd" ]] && o_initrd="$o_dir/initrd.gz"
     [[ -z "$o_kernel" ]] && o_kernel="$o_dir/vmlinuz"
     [[ -z "$o_multistrap_config" ]] && o_multistrap_config="$o_dir/duckcfg/multistrap.conf"
-    [[ -z "$o_fakechroot_env" ]] && o_fakechroot_env="$ROOT/duckcfg/fakechroot.env"
+    [[ -z "$o_fakechroot_env" ]] && o_fakechroot_env="$DUCK_HOME/duckcfg/fakechroot.env"
 
     if [[ -z "$o_root_cmd" ]]; then
-        check_command "$fakeroot" || return 1
-        fakeroot_path="$COMMAND"
-        check_command "$fakechroot" || return 1
-        fakechroot_path="$COMMAND"
-        o_root_cmd="$fakeroot_path $fakechroot_path"
-    fi
+        # use fakeroot/fakechroot when building images.
+        # make sure we can find these commands.
 
-    if [[ ! -d $o_dir/duckcfg ]]; then
-        error "missing: $o_dir/duckcfg"
-        return 1
+        look_for "$fakeroot" || return 1
+        fakeroot_path="$COMMAND"
+
+        look_for "$fakechroot" || return 1
+        fakechroot_path="$COMMAND"
+
+        o_root_cmd="$fakeroot_path $fakechroot_path"
     fi
 
     if [[ ! -f $o_fakechroot_env ]]; then
@@ -507,9 +548,19 @@ read_opts() {
 handle_action() {
     action=$1
 
+    if [[ "$action" != "setup" ]]; then
+        if [[ ! -d $o_dir/duckcfg ]]; then
+            error "missing $o_dir/duckcfg, run setup"
+            return 1
+        fi
+    fi
+
     case "$action" in
         setup)
             action_setup;
+        ;;
+        build)
+            action_build;
         ;;
         enter)
             action_enter;
@@ -529,8 +580,8 @@ handle_action() {
     return $?
 }
 
-if [[ ! -d $CFGDIR ]]; then
-    error "no configuration directory: $CFGDIR"
+if ! find_duck_home; then
+    error "could not determine DUCK_HOME"
     exit 1
 fi
 
