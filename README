@@ -1,0 +1,33 @@
+duck
+----
+
+A minimalist installer system generator.
+
+about
+-----
+
+Duck will help you generate installer system images setup as an initrd, similar
+to how debian-installer works.
+
+There are however a few goals with duck that are different.
+
+* No memory restrictions (debian-installer is geared towards 32M)
+* Less rigorous space restrictions
+  - No special packaging necessary, but encouraged: http://www.emdebian.org/
+  - No library stripping.
+
+All in all, you get a slightly bigger installer image, but a lot more
+flexibility.
+
+usage
+-----
+
+Duck has two steps in creating an initrd.
+
+setup - Setup the base system.
+pack - Pack the resulting initrd.gz
+
+For testing/tweaking there are two other commands available.
+
+enter - Enter the chroot that is used to build the initrd.
+qemu - Run the resulting initrd in a qemu-based virtual environment.
