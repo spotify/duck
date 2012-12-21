@@ -2,7 +2,7 @@
 
 set -e
 
-. /lib/libinstaller.sh
+. /lib/libduck.sh
 
 timeout=3
 

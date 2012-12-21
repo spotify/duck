@@ -2,7 +2,7 @@
 
 set -e
 
-. /lib/libinstaller.sh
+. /lib/libduck.sh
 
 info "Setting up network with dhcp"
 

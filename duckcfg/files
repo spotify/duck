@@ -6,17 +6,17 @@ root/init /
 # target inittab
 etc/* /etc root 0644
 
-# autologin program
-sbin/autologin /sbin
+# ducklogin program
+sbin/ducklogin /sbin
 
-# autodb program
-sbin/autodb /sbin
+# duckdb program
+sbin/duckdb /sbin
 
 # main installer
-sbin/autoinstaller /sbin
+sbin/duckinstaller /sbin
 
 # installer library
-lib/libinstaller.sh /lib root 0644
+lib/libduck.sh /lib root 0644
 
 # installation steps
-lib/installer.d/* /lib/installer.d
+lib/duck.d/* /lib/duck.d

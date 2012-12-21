@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. /lib/libinstaller.sh
+. /lib/libduck.sh
 
 info "Autoinstaller version 0.1"
 
@@ -15,4 +15,4 @@ else
     touch $installer_status
 fi
 
-exec /sbin/autologin
+exec /sbin/ducklogin

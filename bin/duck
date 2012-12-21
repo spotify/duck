@@ -69,13 +69,13 @@ chroot=chroot
 qemu=qemu-system-x86_64
 cpio=cpio
 
-multistrap=multistrap
+debootstrap=debootstrap
 
 # runned action
 default_action="build"
 
 # shell
-o_shell=/bin/sh
+o_shell=/bin/bash
 
 # force a base system update
 o_update="no"
@@ -83,7 +83,7 @@ o_update="no"
 # working directory.
 o_dir=""
 # command to run when doing stuff as root.
-o_root_cmd=""
+o_r=""
 # commands that have default values, set in read_opts.
 # directory to orchestrate initrd building.
 o_target=""
@@ -91,8 +91,6 @@ o_target=""
 o_initrd=""
 # where to run kernel image from
 o_kernel=""
-# where the multistrap configuration should be
-o_multistrap_config=""
 # path to fakechroot environment setting.
 o_fakechroot_env=""
 
@@ -100,7 +98,7 @@ print_help() {
     cat <<ENDL
 usage: duck [action]
 
-Duck is an automated installation builder system.
+Duck is an duckmated installation builder system.
 
   -d <out>    : Specify where to write packed initrd (default: pwd).
   -r          : Use 'sudo' instead of fakeroot when building images.
@@ -109,7 +107,6 @@ Duck is an automated installation builder system.
   -i <initrd> : Specify which shell to use (default: <out>/initrd.gz).
   -k <kernel> : Specify which shell to use (default: <out>/vmlinuz).
   -t <target> : Manually specify where to build initrd target.
-  -m <config> : Multistrap config (default: <out>/duckcfg/multistrap.conf).
   -E <env>    : File to load environment variables from whe using chroot.
   -u          : Update the base system, even if directory already exists.
 
@@ -147,14 +144,14 @@ in_target_fix() {
         notice "target: <$script>"
 
         (
-            $o_root_cmd cp -a $script $outer_b
+            $o_r cp -a $script $outer_b
             source $o_fakechroot_env;
-            $o_root_cmd $chroot $o_target $o_shell -c "exec $b $action"
+            $o_r $chroot $o_target $o_shell -c "exec $b $action"
         )
 
         [[ $? -ne 0 ]] && status_code=1
 
-        rm -f $outer_b
+        $o_r rm -f $outer_b
     done
 
     return $status_code
@@ -172,7 +169,7 @@ in_target_run() {
 
     (
         source $o_fakechroot_env;
-        exec $o_root_cmd $chroot $o_target $o_shell -c "$command"
+        exec $o_r $chroot $o_target $o_shell -c "$command"
     )
 
     return $?
@@ -194,12 +191,12 @@ install_file() {
 
     target_dir=$o_target/$tpath
 
-    $o_root_cmd mkdir -p $target_dir
+    $o_r mkdir -p $target_dir
 
     for path in ${sources[@]}; do
         [[ ! -f $path ]] && continue
         notice "installing $path into $original_tpath"
-        $o_root_cmd install -o $owner -m $mode -t $target_dir $path
+        $o_r install -o $owner -m $mode -t $target_dir $path
     done
 
     return $?
@@ -231,7 +228,7 @@ run_target_fixes() {
             continue
         fi
 
-        echo "$name" >> $fixes
+        echo "$name" | $o_r tee -a $fixes -> /dev/null
     done < <(readcfgs "${f[@]}")
 
     return $status_code
@@ -299,30 +296,64 @@ enable_boot_services() {
 }
 
 system_bootstrap() {
-    status=$o_target/tmp/.multistrapped
+    status=$o_target/tmp/.debootstrapped
 
     if [[ -f $status && "$o_update" != "yes" ]]; then
         notice "not setting up base system"
         return 0
     fi
 
-    if ! look_for $multistrap; then
+    if ! look_for $debootstrap; then
         return 1
     fi
 
-    multistrap_path="$COMMAND"
+    debootstrap_path="$COMMAND"
 
     mkdir -p $o_target
 
-    notice "setting up base system"
+    notice "Setting up base system"
 
-    if ! $o_root_cmd $multistrap_path -d $o_target -f $o_multistrap_config; then
+    if ! $o_r $debootstrap_path --variant=minbase squeeze $o_target; then
         error "failed to build base system"
         return 1
     fi
 
-    if ! $o_root_cmd touch $status; then
+    if ! $o_r touch $status; then
         error "touch: $status"
+        return 1
+    fi
+
+    return 0
+}
+
+debian_base_install() {
+    notice "Installing Base System"
+
+    echo -e "#/bin/sh\nexit 101" | $o_r tee $o_target/usr/sbin/policy-rc.d -> /dev/null
+
+    $o_r chmod 755 $o_target/usr/sbin/policy-rc.d
+
+    (
+        set -e
+
+        $o_r mkdir -p $o_target/etc/apt/sources.list.d/
+        $o_r cp -a $o_dir/duckcfg/sources.list $o_target/etc/apt/sources.list.d/
+        in_target_run "apt-get -y update"
+        in_target_run "apt-get -y --force-yes install apt-transport-https"
+
+        $o_r cp -a $o_dir/duckcfg/sources.target.list $o_target/etc/apt/sources.list.d/
+        in_target_run "apt-get -y update"
+
+        while read p; do
+            in_target_run "apt-get -y --force-yes install $p"
+        done < <(readcfgs $o_dir/duckcfg/packages)
+
+        in_target_run "apt-get clean"
+
+    )
+
+    if [[ $? -ne 0 ]]; then
+        error "Failed to configure APT"
         return 1
     fi
 
@@ -354,20 +385,21 @@ action_setup() {
         fi
     done
 
-    notice "copying basic multistrap config"
-    if ! cp $DUCK_HOME/duckcfg/multistrap.conf $o_dir/duckcfg/multistrap.conf; then
-        error "could not copy multistrap config"
-        return 1
-    fi
-
     return 0
 }
 
 action_build() {
-    notice "setting up system with multistrap"
+    notice "setting up system with debootstrap"
 
     if ! system_bootstrap; then
-        error "failed to build system with multistrap"
+        error "failed to build system with debootstrap"
+        return 1
+    fi
+
+    notice "installing base packages"
+
+    if ! debian_base_install; then
+        error "failed to install base packages"
         return 1
     fi
 
@@ -413,6 +445,10 @@ action_build() {
         return 1
     fi
 
+    notice "stripping initrd"
+
+    in_target_run "rm -rf /var/lib/{apt,dpkg} /usr/share/{doc,man} /var/cache"
+
     notice "all done!"
     return 0
 }
@@ -424,10 +460,10 @@ action_enter() {
 
     chroot_path="$COMMAND"
 
-    notice  "$o_root_cmd $chroot_path $o_target $o_shell"
+    notice  "$o_r $chroot_path $o_target $o_shell"
 
     source $o_fakechroot_env
-    exec $o_root_cmd $chroot_path $o_target $o_shell
+    exec $o_r $chroot_path $o_target $o_shell
 }
 
 action_pack() {
@@ -440,7 +476,7 @@ action_pack() {
 
     pack="cd $o_target; find . | $cpio --create --format newc"
 
-    if ! $o_root_cmd $o_shell -c "$pack" | gzip > $o_initrd; then
+    if ! $o_r $o_shell -c "$pack" | gzip > $o_initrd; then
         error "failed to pack initrd"
         return 1
     fi
@@ -506,13 +542,12 @@ read_opts() {
             exit 1
         ;;
         u) o_update="yes" ;;
-        r) o_root_cmd="sudo -E";;
+        r) o_r="sudo -E";;
         s) o_shell="$OPTARG";;
         d) o_dir="$OPTARG";;
         t) o_target="$OPTARG";;
         i) o_initrd="$OPTARG";;
         k) o_kernel="$OPTARG";;
-        m) o_multistrap_config="$OPTARG";;
         E) o_fakechroot_env="$OPTARG";;
         esac
     done
@@ -521,10 +556,9 @@ read_opts() {
     [[ -z "$o_target" ]] && o_target="$o_dir/tmp/initrd"
     [[ -z "$o_initrd" ]] && o_initrd="$o_dir/initrd.gz"
     [[ -z "$o_kernel" ]] && o_kernel="$o_dir/vmlinuz"
-    [[ -z "$o_multistrap_config" ]] && o_multistrap_config="$o_dir/duckcfg/multistrap.conf"
     [[ -z "$o_fakechroot_env" ]] && o_fakechroot_env="$DUCK_HOME/duckcfg/fakechroot.env"
 
-    if [[ -z "$o_root_cmd" ]]; then
+    if [[ -z "$o_r" ]]; then
         # use fakeroot/fakechroot when building images.
         # make sure we can find these commands.
 
@@ -534,7 +568,7 @@ read_opts() {
         look_for "$fakechroot" || return 1
         fakechroot_path="$COMMAND"
 
-        o_root_cmd="$fakeroot_path $fakechroot_path"
+        o_r="$fakeroot_path $fakechroot_path"
     fi
 
     if [[ ! -f $o_fakechroot_env ]]; then

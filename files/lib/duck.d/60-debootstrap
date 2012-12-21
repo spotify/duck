@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -e
+
+. /lib/libduck.sh
+
+if [[ ! -d $target ]]; then
+    error "Target does not exist: $target"
+    exit 1
+fi
+
+debootstrap squeeze $target
+
+mkdir -p $target/etc/apt/sources.list.d/
+
+cp -a /etc/apt/sources.list.d/sources.list $target/etc/apt/sources.list.d/
+in_target "apt-get -y update"
+in_target "apt-get -y install apt-transport-https"
+
+cp -a /etc/apt/sources.list.d/sources.target.list $target/etc/apt/sources.list.d/
+in_target "apt-get -y update"
+in_target "aptitude -y install $(cat /etc/duck.packages)"

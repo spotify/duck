@@ -1,15 +1,15 @@
 #!/usr/bin/python
 #
-# AutoDB is used to store autoinstaller variables.
+# AutoDB is used to store duckinstaller variables.
 #
 
 import dbm
 
-DB = "/var/autodb.dbm"
+DB = "/var/duckdb.dbm"
 
 
 def usage():
-    print "usage: autodb <action> ..."
+    print "usage: duckdb <action> ..."
     print "  actions:"
     print "    set <key> <value> - Set <key> as <value>"
     print "    get <key>         - Get <key>"

@@ -19,7 +19,7 @@ pf::powerwait:/etc/init.d/powerfail start
 pn::powerfailnow:/etc/init.d/powerfail now
 po::powerokwait:/etc/init.d/powerfail stop
 
-1:23:respawn:/sbin/agetty -n -l /sbin/autoinstaller 38400 tty1
-2:23:respawn:/sbin/agetty -n -l /sbin/autologin 38400 tty2
-3:23:respawn:/sbin/agetty -n -l /sbin/autologin 38400 tty3
-4:23:respawn:/sbin/agetty -n -l /sbin/autologin 38400 tty4
+1:23:respawn:/sbin/agetty -n -l /sbin/duckinstaller 38400 tty1
+2:23:respawn:/sbin/agetty -n -l /sbin/ducklogin 38400 tty2
+3:23:respawn:/sbin/agetty -n -l /sbin/ducklogin 38400 tty3
+4:23:respawn:/sbin/agetty -n -l /sbin/ducklogin 38400 tty4
