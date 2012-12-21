@@ -513,10 +513,10 @@ action_qemu() {
         o_kernel="$KERNEL"
     fi
 
-    opts="-serial stdio -m 512 -curses"
+    opts="-serial stdio -m 512"
     opts="$opts -append duck/mode=testing"
 
-    if ! look_for $qemu; then
+    if ! look_for "$qemu"; then
         return 1
     fi
 
