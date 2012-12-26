@@ -1,0 +1,36 @@
+---
+build_sources:
+  - url: "http://www.emdebian.org/grip"
+    suite: squeeze
+    components:
+      - main
+  - url: "http://ftp.se.debian.org/debian"
+    suite: squeeze
+    components:
+      - main
+
+files:
+# init file
+  - from: init
+    to: /
+# configuration files
+  - from: etc/**/*
+    to: /etc/
+# ducklogin program
+  - from: sbin/*
+    to: /sbin/
+    mode: 0755
+# installer library
+  - from: lib/libduck.sh
+    to: /lib/
+# installation steps
+  - from: lib/duck.d/*
+    to: /lib/duck.d/
+    mode: 0755
+
+fixes:
+  # file contains scripts that should be run to fix the target environment.
+  # scripts are located under <out>/fixes
+  - squeeze-fix
+  # disable initrd generation and grub setup for installed kernels.
+  - kernel-boot-fix

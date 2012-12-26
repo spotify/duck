@@ -5,8 +5,8 @@
 set -e
 
 case "$1" in
-    "pre")
-        /var/lib/dpkg/info/dash.preinst install
+    "pre-bootstrap")
+        mkdir -p /usr/share/man/man1
         ;;
     *) ;;
 esac

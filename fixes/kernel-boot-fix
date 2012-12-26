@@ -5,8 +5,13 @@ set -e
 status_code=0
 
 case "$1" in
-    "pre")
-        while read name _; do
+    "pre-configure")
+        echo "Disabling generation of an initramfs"
+
+        rm -rf /etc/kernel/postinst.d
+        rm -rf /etc/kernel/postrm.d
+
+        dpkg --get-selections | while read name _; do
             case "$name" in
                 linux-image-*-dbg) continue ;;
                 linux-image-*)  ;;
@@ -28,10 +33,10 @@ case "$1" in
                 echo "failed to patch: $path"
                 exit 1
             fi
-        done < <(dpkg --get-selections)
+        done
         ;;
-    "post")
-        echo "clearing /boot"
+    "post-configure")
+        echo "Clearing /boot"
         rm -rf /boot
         ;;
 esac
