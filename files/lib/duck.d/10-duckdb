@@ -4,10 +4,16 @@ set -e
 
 . /lib/libduck.sh
 
-info "Setting autodb variables"
+info "duckdb: Loading Variables"
 
-if ! a_cmdline; then
-    error "Failed to set kernel arguments"
+if [[ -f $DUCKDB_CONF ]]; then
+  info "duckdb: loading $DUCKDB_CONF"
+  duckdb file $DUCKDB_CONF
+fi
+
+info "duckdb: loading /proc/cmdline"
+if ! duckdb cmdline /proc/cmdline; then
+    error "duckdb: Failed to load kernel arguments"
     exit 1
 fi
 

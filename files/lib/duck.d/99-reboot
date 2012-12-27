@@ -4,22 +4,12 @@ set -e
 
 . /lib/libduck.sh
 
-info "Installation done, rebooting!"
-
-if ! a_get duck/mode; then
-    error "Failed to get duck/mode"
-    exit 1
+if [[ "$DUCK_MODE" == "testing" ]]; then
+    warning "Not rebooting, duck/mode=testing"
+    exit 0
 fi
 
-MODE="$RET"
+info "Installation done, rebooting!"
 
-case "$MODE" in
-    "testing")
-        warning "Not rebooting, duck/mode=testing"
-        ;;
-    *)
-        reboot
-        ;;
-esac
-
+reboot
 exit 0

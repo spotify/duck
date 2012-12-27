@@ -1,9 +1,12 @@
 #!/bin/bash
 
+# static variables
+export DUCK_VERSION="0.1"
+export DUCKDB_CONF="/duckdb.conf"
 # if this file exists, the installation loop should not run.
-export installer_status="/.installer_status"
-export default_log="/var/log/duckinstaller.log"
-export target="/target"
+export INSTALLER_STATUS="/.installer_status"
+# default logging location.
+export DEFAULT_LOG="/var/log/duckinstaller.log"
 
 info()    { echo "    INFO : $@"; }
 warning() { echo " WARNING : $@"; }
@@ -49,6 +52,9 @@ in_target() {
     # this allows us to override some useful environment variables
     # at leisure.
 
+    a_get duck/target
+    target="$RET"
+
     command="$1"
 
     info "in-target: $command"
@@ -66,15 +72,23 @@ in_target() {
 }
 
 
-# get audodb variable
-a_get()     { eval $(duckdb get "$1" "$2"); }
+# get single duckdb variable
+a_get() {
+    export RET=""
+
+    eval $(duckdb get "$@")
+
+    if [[ $# -eq 1 && -z "$RET" ]]; then
+        error "Missing required duckdb variable: $1"
+        exit 1
+    fi
+}
+
 # set single duckdb variable
-a_set()     { eval $(duckdb set "$1" "$2"); }
-# list duckdb variables
-a_list()    { duckdb list; }
-# read duckdb variables from cmdline
-a_cmdline() { duckdb cmdline /proc/cmdline; }
-# read duckdb variables from file
-a_file()    { duckdb file "$1"; }
-# read duckdb variables from url
-a_url()     { duckdb url "$1"; }
+a_set() {
+    eval $(duckdb set "$@");
+}
+
+# Dynamic Variables
+a_get duck/mode "testing"
+export DUCK_MODE="$RET"

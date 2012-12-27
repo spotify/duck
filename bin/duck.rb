@@ -15,7 +15,7 @@ DEFAULT_SHELL = '/bin/bash'
 FILES_DIR = 'files'
 FIXES_DIR = 'fixes'
 CONFIG_NAME = 'duck.yaml'
-CONFIG_ARRAYS = [:files, :packages, :transports, :pinning, :fixes]
+CONFIG_ARRAYS = [:files, :packages, :transports, :preferences, :fixes, :services]
 
 # Alternatives for shared configuration.
 SHARED_CONFIG = [
@@ -23,19 +23,16 @@ SHARED_CONFIG = [
   "/usr/share/duck/#{CONFIG_NAME}",
 ]
 
-=begin
-  Class to encapsulate running of external commands.
-=end
-class Command
-  def initialize(name, params={})
-    @name = name
-    @out = params[:out] || $stdout
-  end
+$log = Logger.new STDOUT
+$log.level = Logger::INFO
 
-  def call(args, params={})
+module SpawnUtils
+  SH = 'sh'
+  DEBOOTSTRAP = 'debootstrap'
+  QEMU = 'qemu-system-x86_64'
+
+  def spawn(args, params={})
     env = params[:env] || {}
-
-    args = [@name] + args
 
     repr = args.join " "
 
@@ -54,15 +51,38 @@ class Command
 
     return exit_status
   end
+
+  def local_shell(command)
+    spawn [SH, '-c', command]
+  end
+
+  def local_debootstrap(target, step, options={})
+    suite = options[:suite] || DEFAULT_SUITE
+    debootstrap_args = Array.new(options[:extra] || [])
+
+    if options[:tarball] and File.file? options[:tarball]
+      debootstrap_args << "--unpack-tarball=#{options[:tarball]}"
+    end
+
+    debootstrap_args << step << suite << target
+    debootstrap_args << options[:mirror] if options.include? :mirror
+    spawn [DEBOOTSTRAP] + debootstrap_args
+  end
+
+  def local_qemu(args)
+    spawn [QEMU] + args
+  end
 end
 
-$chroot = Command.new 'chroot'
-$sh = Command.new 'sh'
-
-$log = Logger.new STDOUT
-$log.level = Logger::INFO
-
 module ChrootUtils
+  include SpawnUtils
+
+  CHROOT = 'chroot'
+  APT_GET = 'apt-get'
+  DPKG = 'dpkg'
+  UPDATE_RCD = 'update-rc.d'
+  SH = 'sh'
+
   CHROOT_ENV = {
     'DEBIAN_FRONTEND' => 'noninteractive',
     'DEBCONF_NONINTERACTIVE_SEEN' => 'true',
@@ -71,23 +91,31 @@ module ChrootUtils
     'LANG' => 'C',
   }
 
+  def local_chroot(args, options={})
+    spawn [CHROOT] + args, options
+  end
+
   # for doing automated tasks inside of the chroot.
-  def auto_chroot(*args)
+  def auto_chroot(args)
     $log.info "chroot: #{args.join ' '}"
-    env = @env.merge(CHROOT_ENV)
-    $chroot.call [@target] + args, :env => env
+    env = Hash.new(@env || {}).merge(CHROOT_ENV)
+    local_chroot [@target] + args, :env => env
   end
 
   def apt_get(*args)
-    auto_chroot 'apt-get', '-y', '--force-yes', *args
+    auto_chroot [APT_GET, '-y', '--force-yes'] + args
   end
 
   def dpkg(*args)
-    auto_chroot 'dpkg', *args
+    auto_chroot [DPKG] + args
   end
 
-  def sh(env, target, command)
-    auto_chroot 'sh', '-c', command
+  def shell(command)
+    auto_chroot [SH, '-c', command]
+  end
+
+  def update_rcd(*args)
+    auto_chroot [UPDATE_RCD] + args
   end
 end
 
@@ -97,18 +125,22 @@ class Build
   def initialize(options)
     @env = options[:env] || {}
     @packages = options[:packages] || []
-    @debootstrap_options = options[:debootstrap] || {}
+    @debootstrap = options[:debootstrap] || {}
+    @debootstrap_tarball = options[:debootstrap_tarball]
     @target = options[:target]
-    @target_debootstrap = options[:target_debootstrap]
+    @bootstrap_status = options[:bootstrap_status]
     @fixes = options[:fixes]
     @fixes_dir = options[:fixes_dir]
+    @files_dir = options[:files_dir]
     @target_fixes = options[:target_fixes]
     @build_sources = options[:build_sources]
     @main_sources = options[:main_sources]
+    @transports = options[:transports]
     @files = validate_array [:from, :to], options[:files]
-    @pinning = validate_array [:package, :pin, :priority], options[:pinning]
+    @services = validate_array [:name], options[:services]
+    @preferences = validate_array [:package, :pin, :priority], options[:preferences]
+    @debootstrap[:tarball] = @debootstrap_tarball if @debootstrap_tarball
     @_roots = options[:_roots]
-    @debootstrap = Command.new 'debootstrap'
   end
 
   def validate_item(keys, item)
@@ -119,27 +151,28 @@ class Build
     items.each {|item| validate_item keys, item}
   end
 
-  def debootstrap(step, args={})
-    suite = args[:suite] || DEFAULT_SUITE
-    debootstrap_args = Array.new(args[:extra] || [])
-    debootstrap_args << step << suite << @target
-    debootstrap_args << args[:mirror] if args.include? :mirror
-    @debootstrap.call debootstrap_args
-  end
-
   def early_bootstrap
+    args = @debootstrap.clone
+
+    if @debootstrap_tarball
+      unless File.file? @debootstrap_tarball
+        $log.info "Building tarball: #{@debootstrap_tarball}"
+        local_debootstrap @target, "--make-tarball=#{@debootstrap_tarball}", @debootstrap
+      end
+    end
+
     $log.info "Early stage debootstrap in #{@target}"
-    debootstrap '--foreign', @debootstrap_options
+    local_debootstrap @target, '--foreign', @debootstrap
   end
 
   def late_bootstrap
     $log.info "Late stage debootstrap in #{@target}"
-    $chroot.call [@target, '/debootstrap/debootstrap', '--second-stage']
+    local_chroot [@target, '/debootstrap/debootstrap', '--second-stage']
   end
 
   def all_bootstrap
-    if File.file? @target_debootstrap
-      $log.info "Already Bootstrapped: #{@target_debootstrap}"
+    if File.file? @bootstrap_status
+      $log.info "Already Bootstrapped: #{@bootstrap_status}"
       return
     end
 
@@ -149,7 +182,7 @@ class Build
     late_bootstrap
     run_fixes "post-bootstrap"
 
-    FileUtils.touch @target_debootstrap
+    FileUtils.touch @bootstrap_status
   end
 
   def run_fixes(stage)
@@ -168,7 +201,7 @@ class Build
         end
 
         $log.info "Running fix '#{fix_name}': #{fix_run} #{stage}"
-        $chroot.call [@target, fix_run, stage]
+        local_chroot [@target, fix_run, stage]
       end
     end
   end
@@ -271,7 +304,7 @@ class Build
     File.open(apt_preferences, 'w', 0644) do |f|
       f.write "# generated by duck\n"
 
-      @pinning.each do |pin|
+      @preferences.each do |pin|
         f.write "Package: #{pin[:package]}\n"
         f.write "Pin: #{pin[:pin]}\n"
         f.write "Pin-Priority: #{pin[:priority]}\n"
@@ -311,10 +344,31 @@ class Build
     end
   end
 
-  def cleanup
-    $log.info "Cleaning up environment"
-    apt_get "clean"
-    sh "rm -rf /usr/share/{doc,man} /var/cache"
+  def disable_runlevel(runlevel)
+    runlevel_dir = File.join @target, 'etc', "rc#{runlevel}.d"
+    raise "No such runlevel: #{runlevel}" unless File.directory? runlevel_dir
+
+    Find.find(runlevel_dir) do |path|
+      name = File.basename path
+
+      if name =~ /^S..(.+)$/
+        service = $1
+        $log.info "Disabling Service '#{service}'"
+        update_rcd '-f', service, 'remove'
+      end
+    end
+  end
+
+  def configure_boot_services
+    disable_runlevel '2'
+    disable_runlevel 'S'
+
+    @services.each do |service|
+      args = [service[:name]]
+      args += ['start'] + service[:start].split(' ') if service[:start]
+      args += ['stop'] + service[:stop].split(' ') if service[:stop]
+      update_rcd '-f', *args
+    end
   end
 
   def execute
@@ -323,20 +377,22 @@ class Build
     setup_policy_rcd
     install_packages
     install_manifest
-    cleanup
+    configure_boot_services
     return 0
   end
 end
 
 class Enter
+  include ChrootUtils
+
   def initialize(options)
     @target = options[:target]
     @shell = options[:shell]
-    @env = options[:env]
+    @env = options[:env] || {}
   end
 
   def execute
-    $chroot.call [@target, @shell], :env => @env
+    local_chroot [@target, @shell], :env => @env
   end
 end
 
@@ -345,40 +401,51 @@ class Pack
 
   def initialize(options)
     @target = options[:target]
+    @env = options[:env]
     @initrd = options[:initrd]
+    @minimize = options[:minimize]
+  end
+
+  def minimize_target
+    $log.info "Minimizing Target"
+    apt_get "clean"
+    shell "rm -rf /var/lib/{apt,dpkg} /usr/share/{doc,man} /var/cache"
   end
 
   def execute
+    minimize_target if @minimize
+
     Dir.chdir @target
     $log.info "Packing #{@target} into #{@initrd}"
-    $sh.call ['-c', "find . | cpio -o -H newc | gzip > #{@initrd}"]
+    local_shell "find . | cpio -o -H newc | gzip > #{@initrd}"
     $log.info "Done building initramfs image: #{@initrd}"
   end
 end
 
 class Qemu
+  include SpawnUtils
+
   def initialize(options)
     @target = options[:target]
     @kernel = options[:kernel]
+    @initrd = options[:initrd]
     raise "No kernel specified" unless @kernel
     raise "Specified kernel does not exist: #{@kernel}" unless File.file? @kernel
-    @qemu = Command.new 'qemu-system-x86_64'
   end
 
   def execute
     opts = [
       '-serial', 'stdio', '-m', '512',
-      '-append', 'duck/mode=testing',
-      '-append', 'console=ttyS0',
+      '-append', 'console=ttyS0 duck/mode=testing',
     ]
 
-    qemu_opts = [
+    args = [
       '-kernel', @kernel,
       '-initrd', @initrd,
     ] + opts
 
     $log.info "Executing QEMU on #{@initrd}"
-    @qemu.call qemu_opts
+    local_qemu args
   end
 end
 
@@ -388,20 +455,23 @@ def parse_options(args)
   working_directory = Dir.pwd
   working_directory_config = File.join(working_directory, CONFIG_NAME)
 
-  o[:target] = File.join working_directory, 'tmp', 'initrd' if o[:target].nil?
-  o[:initrd] = File.join working_directory, 'tmp', 'initrd.gz' if o[:initrd].nil?
-  o[:kernel] = File.join working_directory, 'vmlinuz' if o[:kernel].nil?
+  o[:target] = File.join working_directory, 'tmp', 'initrd'
+  o[:initrd] = File.join working_directory, 'tmp', 'initrd.gz'
+  o[:kernel] = File.join working_directory, 'vmlinuz'
+  o[:minimize] = false
   o[:files] = []
+  o[:services] = []
   o[:packages] = []
   o[:transports] = []
   o[:fixes] = []
-  o[:pinning] = []
+  o[:preferences] = []
   o[:shell] = DEFAULT_SHELL
   o[:fixes_dir] = FIXES_DIR
   o[:files_dir] = FILES_DIR
+  o[:debootstrap_tarball] = File.join working_directory, 'tmp', 'debootstrap.tar'
   o[:_configs] = []
 
-  action_name = :build
+  action_names = [:build, :pack]
 
   opts = OptionParser.new do |opts|
     opts.banner = 'Usage: duck [action] [options]'
@@ -409,6 +479,11 @@ def parse_options(args)
     opts.on('-t <dir>', '--target <dir>',
             'Build in the specified target directory') do |dir|
       o[:target] = dir
+    end
+
+    opts.on('--minimize',
+            'Minimize the installation right before packing') do |dir|
+      o[:minimize] = true
     end
 
     opts.on('-o <file>', '--output <file>',
@@ -440,14 +515,14 @@ def parse_options(args)
   args = opts.parse! args
 
   unless args.empty?
-    action_name = args[0].to_sym
+    action_names = args.map{|a| a.to_sym}
   end
 
   # Used when checking for direct call to binary.
   binary_root = File.dirname File.dirname(File.expand_path($0))
   binary_config = File.join binary_root, CONFIG_NAME
 
-  o[:target_debootstrap] = File.join o[:target], '.debootstrap'
+  o[:bootstrap_status] = File.join o[:target], '.debootstrap'
 
   # add default configuration if none is specified.
   if o[:_configs].empty?
@@ -465,7 +540,7 @@ def parse_options(args)
 
   o[:_configs].uniq!
   o[:_configs].reject!{|i| not File.file? i}
-  return action_name, o
+  return action_names, o
 end
 
 def deep_symbolize(o)
@@ -509,19 +584,23 @@ ACTTIONS = {
 }
 
 def main(args)
-  action_name, o = parse_options args
+  action_names, o = parse_options args
   return 0 if o.nil?
   prepare_options o
 
-  action_class = ACTTIONS[action_name]
+  action_names.each do |action_name|
+    action_class = ACTTIONS[action_name]
 
-  if action_class.nil?
-    $log.error "No such action: #{action_name}"
-    return 1
+    if action_class.nil?
+      $log.error "No such action: #{action_name}"
+      return 1
+    end
+
+    action_instance = action_class.new o
+    action_instance.execute
   end
 
-  action_instance = action_class.new o
-  action_instance.execute
+  return 0
 end
 
 exit main(ARGV) if __FILE__ == $0

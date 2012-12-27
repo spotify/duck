@@ -18,7 +18,11 @@ case "$1" in
                 *) continue ;;
             esac
 
+            version=${name#linux-image-*}
+
             path="/var/lib/dpkg/info/$name.postinst"
+
+            [[ ! -f $path ]] && continue
 
             if ! grep -E 'my \$initrd\s+=\s+"YES";' $path; then
                 echo "initrd already disabled: $name"
@@ -27,12 +31,15 @@ case "$1" in
 
             cp -a $path $path.original
 
-            echo "disabling initrd for: $name"
+            echo "Disabling initrd for: $name"
 
             if ! sed -r -i 's/my \$initrd\s+=\s+"YES";/my $initrd = "";/' $path; then
                 echo "failed to patch: $path"
                 exit 1
             fi
+
+            echo "Generating modules.dep"
+            depmod $version
         done
         ;;
     "post-configure")

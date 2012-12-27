@@ -2,17 +2,17 @@
 
 . /lib/libduck.sh
 
-info "Autoinstaller version 0.1"
+info "Duck Installer $DUCK_VERSION"
 
-a_get duck/log "$default_log"
+a_get duck/log "$DEFAULT_LOG"
 log="$RET"
 
-if [[ -f $installer_status ]]; then
-    info "Not running installation, $installer_status exists"
+if [[ -f $INSTALLER_STATUS ]]; then
+    info "Not running installation, $INSTALLER_STATUS exists"
 else
     info "Running installation, logging to $log"
     run_installer | tee -a $log
-    touch $installer_status
+    touch $INSTALLER_STATUS
 fi
 
 exec /sbin/ducklogin

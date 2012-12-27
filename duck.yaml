@@ -11,7 +11,7 @@ build_sources:
 
 files:
 # init file
-  - from: init
+  - from: *
     to: /
 # configuration files
   - from: etc/**/*
@@ -34,3 +34,18 @@ fixes:
   - squeeze-fix
   # disable initrd generation and grub setup for installed kernels.
   - kernel-boot-fix
+
+services:
+# hostname setup
+  - name: hostname.sh
+    start: '05 S'
+# mounting kernel filesystems.
+  - name: mountkernfs.sh
+    start: '05 S'
+# udev
+  - name: udev
+    start: '10 S'
+# start lvm
+  - name: lvm2
+    start: '20 S'
+    stop: '20 0 6'

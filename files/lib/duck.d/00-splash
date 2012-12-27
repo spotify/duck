@@ -4,8 +4,6 @@ set -e
 
 . /lib/libduck.sh
 
-timeout=3
-
 cat - <<ENDL
                _              
             .-' '-.           
@@ -31,6 +29,6 @@ cat - <<ENDL
 
 ENDL
 
-timeout_with $timeout "Installation starting in..."
+timeout_with 3 "Installation starting in..."
 
 reset
