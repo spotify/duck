@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+
+if __FILE__ == $0
+    root = File.dirname File.dirname($0)
+    $:.insert 0, File.join(root, 'lib') if File.directory? File.join(root, 'lib')
+    require 'duck'
+    exit Duck::main(ARGV)
+end

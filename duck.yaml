@@ -14,20 +14,20 @@ packages:
 
 files:
 # init file
-  - from: *
+  - from: /*
     to: /
 # configuration files
-  - from: etc/**/*
+  - from: /etc/**/*
     to: /etc/
-# ducklogin program
-  - from: sbin/*
+# installer library
+  - from: /lib/libduck.sh
+    to: /lib/
+# duck applications
+  - from: /sbin/*
     to: /sbin/
     mode: 0755
-# installer library
-  - from: lib/libduck.sh
-    to: /lib/
 # installation steps
-  - from: lib/duck.d/*
+  - from: /lib/duck.d/*
     to: /lib/duck.d/
     mode: 0755
 
