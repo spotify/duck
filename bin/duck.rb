@@ -64,12 +64,37 @@ end
 
 $chroot = Command.new 'chroot'
 $debootstrap = Command.new 'debootstrap'
+$sh = Command.new 'sh'
+$qemu = Command.new 'qemu-system-x86_64'
 
 $log = Logger.new STDOUT
 $log.level = Logger::INFO
 
+module ChrootUtils
+  # for doing automated tasks inside of the chroot.
+  def auto_chroot(env, target, *args)
+    $log.info "chroot: #{args.join ' '}"
+    env = (env || {}).merge(CHROOT_ENV)
+    $chroot.call [target] + args, :env => env
+  end
+
+  def apt_get(env, target, *args)
+    auto_chroot env, target, 'apt-get', '-y', '--force-yes', *args
+  end
+
+  def dpkg(env, target, *args)
+    auto_chroot env, target, 'dpkg', *args
+  end
+
+  def sh(env, target, command)
+    auto_chroot env, target, 'sh', '-c', command
+  end
+end
+
 module Build
   class << self
+    include ChrootUtils
+
     def debootstrap(step, target, args={})
       suite = args[:suite] || DEFAULT_SUITE
       debootstrap_args = Array.new(args[:extra] || [])
@@ -170,21 +195,6 @@ module Build
       end
 
       $log.info "Done Installing Files"
-    end
-
-    # for doing automated tasks inside of the chroot.
-    def auto_chroot(env, target, *args)
-      $log.info "chroot: #{args.join ' '}"
-      env = (env || {}).merge(CHROOT_ENV)
-      $chroot.call [target] + args, :env => env
-    end
-
-    def apt_get(env, target, *args)
-      auto_chroot env, target, 'apt-get', '-y', '--force-yes', *args
-    end
-
-    def dpkg(env, target, *args)
-      auto_chroot env, target, 'dpkg', *args
     end
 
     def install_packages(o, env, target, packages)
@@ -302,12 +312,19 @@ module Build
       end
     end
 
+    def cleanup(env, target)
+      $log.info "Cleaning up environment"
+      apt_get env, target, "clean"
+      sh env, target, "rm -rf /usr/share/{doc,man} /var/cache"
+    end
+
     def execute(o)
       all_bootstrap o
       prepare_apt o
       setup_policy_rcd o
       install_packages o, o[:env], o[:target], o[:packages]
       install_manifest o
+      cleanup o[:env], o[:target]
       return 0
     end
   end
@@ -321,10 +338,58 @@ module Enter
   end
 end
 
+module Pack
+  require 'find'
+
+  class << self
+    include ChrootUtils
+
+    def execute(o)
+      Dir.chdir o[:target]
+      $log.info "Packing #{o[:target]} into #{o[:initrd]}"
+      $sh.call ['-c', "find . | cpio -o -H newc | gzip > #{o[:initrd]}"]
+      $log.info "Done building initramfs image: #{o[:initrd]}"
+    end
+  end
+end
+
+module Qemu
+  class << self
+    def execute(o)
+      if o[:kernel].nil?
+        raise "No kernel specified"
+      end
+
+      unless File.file? o[:kernel]
+        raise "Specified kernel does not exist: #{o[:kernel]}"
+      end
+
+      opts = [
+        '-serial', 'stdio', '-m', '512',
+        '-append', 'duck/mode=testing',
+        '-append', 'console=ttyS0',
+      ]
+
+      qemu_opts = [
+        '-kernel', o[:kernel],
+        '-initrd', o[:initrd],
+      ] + opts
+
+      $log.info "Executing QEMU on #{o[:initrd]}"
+      $qemu.call qemu_opts
+    end
+  end
+end
+
 def parse_options(args)
   o = Hash.new
 
-  o[:target] = nil
+  working_directory = Dir.pwd
+  working_directory_config = File.join(working_directory, CONFIG_NAME)
+
+  o[:target] = File.join working_directory, 'tmp', 'initrd' if o[:target].nil?
+  o[:initrd] = File.join working_directory, 'tmp', 'initrd.gz' if o[:initrd].nil?
+  o[:kernel] = File.join working_directory, 'vmlinuz' if o[:kernel].nil?
   o[:files] = []
   o[:packages] = []
   o[:transports] = []
@@ -343,6 +408,16 @@ def parse_options(args)
     opts.on('-t <dir>', '--target <dir>',
             'Build in the specified target directory') do |dir|
       o[:target] = dir
+    end
+
+    opts.on('-o <file>', '--output <file>',
+            'Output the resulting initrd in the specified path') do |path|
+      o[:initrd] = path
+    end
+
+    opts.on('-k <kernel>', '--kernel <kernel>',
+            'Specify kernel to use when running qemu') do |path|
+      o[:kernel] = path
     end
 
     opts.on('-c <path>', '--config <path>',
@@ -367,12 +442,10 @@ def parse_options(args)
     action_name = args[0].to_sym
   end
 
-  working_directory = Dir.pwd
-  working_directory_config = File.join(working_directory, CONFIG_NAME)
-  binary_root = File.dirname File.dirname(File.absolute_path($0))
+  # Used when checking for direct call to binary.
+  binary_root = File.dirname File.dirname(File.expand_path($0))
   binary_config = File.join binary_root, CONFIG_NAME
 
-  o[:target] = File.join working_directory, 'tmp', 'initrd' if o[:target].nil?
   o[:target_debootstrap] = File.join o[:target], '.debootstrap'
 
   # add default configuration if none is specified.
@@ -430,11 +503,13 @@ end
 ACTTIONS = {
   :build => Build,
   :enter => Enter,
+  :pack => Pack,
+  :qemu => Qemu,
 }
 
 def main(args)
   action_name, o = parse_options args
-  return 0 if o.nil? 
+  return 0 if o.nil?
   prepare_options o
 
   action_module = ACTTIONS[action_name]
