@@ -9,6 +9,9 @@ build_sources:
     components:
       - main
 
+packages:
+  - isc-dhcp-client
+
 files:
 # init file
   - from: *

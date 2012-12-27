@@ -11,7 +11,7 @@ fi
 
 info "Setting up network with dhcp"
 
-if ! dhcpcd eth0; then
+if ! dhclient eth0; then
     error "Network setup failed"
     exit 1
 fi
