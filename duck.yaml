@@ -49,3 +49,5 @@ services:
   - name: lvm2
     start: '20 S'
     stop: '20 0 6'
+  - name: mountdevsubfs.sh
+    start: '06 S'
