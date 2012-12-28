@@ -17,7 +17,7 @@ module Duck
 
     def execute
       opts = [
-        '-serial', 'stdio', '-m', '512',
+        '-serial', 'stdio', '-m', '1024',
         '-append', 'console=ttyS0 duck/mode=testing',
       ]
 

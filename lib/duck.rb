@@ -133,7 +133,6 @@ module Duck
     o[:target_fixes] = File.join o[:target], o[:fixes_dir]
 
     FileUtils.mkdir_p o[:target] unless File.directory? o[:target]
-    FileUtils.mkdir_p o[:target_fixes] unless File.directory? o[:target_fixes]
 
     o[:_roots] = o[:_configs].map{|c| File.dirname c}
 

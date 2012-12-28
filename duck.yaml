@@ -10,21 +10,29 @@ build_sources:
       - main
 
 packages:
-  - udev
-  - pciutils
-  - psutils
+  - binutils
   - grub2
-  - syslog-ng
+  - ifupdown
   - iproute
   - isc-dhcp-client
+  - net-tools
+  - netbase
+  - openssh-server
+  - pciutils
+  - psutils
+  - syslog-ng
+  - udev
+  - vim-tiny
 
 files:
 # init file
   - from: /*
     to: /
 # configuration files
-  - from: /etc/**/*
+  - from: /etc/*
     to: /etc/
+  - from: /etc/network/*
+    to: /etc/network/
 # installer library
   - from: /lib/libduck.sh
     to: /lib/
@@ -45,18 +53,22 @@ fixes:
   - kernel-boot-fix
 
 services:
-# hostname setup
   - name: hostname.sh
     start: '05 S'
-# mounting kernel filesystems.
   - name: mountkernfs.sh
     start: '05 S'
-# udev
   - name: udev
     start: '10 S'
-# start lvm
   - name: lvm2
     start: '20 S'
     stop: '20 0 6'
   - name: mountdevsubfs.sh
     start: '06 S'
+  - name: ssh
+    start: '10 2'
+    stop: '10 0 6'
+  - name: networking
+    start: '20 S'
+    stop: '10 0 6'
+
+

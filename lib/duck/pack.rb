@@ -4,6 +4,7 @@ require 'duck/logging'
 module Duck
   class Pack
     include ChrootUtils
+    include Logging
 
     def initialize(options)
       @target = options[:target]

@@ -75,6 +75,8 @@ module Duck
     end
 
     def run_fixes(stage)
+      FileUtils.mkdir_p @target_fixes unless File.directory? @target_fixes
+
       @_roots.each do |root|
         @fixes.each do |fix_name|
           fix_source = File.join root, @fixes_dir, fix_name
@@ -108,7 +110,7 @@ module Duck
 
       target_to = File.join @target, to
 
-      return {:files => source_files, :to => target_to, :mode => mode}
+      {:files => source_files, :to => target_to, :mode => mode}
     end
 
     def install_manifest
@@ -266,7 +268,7 @@ module Duck
       setup_policy_rcd
       install_packages
       install_manifest
-      configure_boot_services
+      #configure_boot_services
       return 0
     end
   end
