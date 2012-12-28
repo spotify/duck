@@ -10,6 +10,12 @@ build_sources:
       - main
 
 packages:
+  - udev
+  - pciutils
+  - psutils
+  - grub2
+  - syslog-ng
+  - iproute
   - isc-dhcp-client
 
 files:

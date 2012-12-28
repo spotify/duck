@@ -3,7 +3,7 @@ require 'fileutils'
 require 'yaml'
 require 'find'
 
-require 'logging'
+require 'duck/logging'
 require 'duck/build'
 require 'duck/enter'
 require 'duck/pack'
@@ -21,12 +21,6 @@ module Duck
   CONFIG_NAME = 'duck.yaml'
   CONFIG_ARRAYS = [:files, :packages, :transports, :preferences, :fixes, :services]
 
-  # Alternatives for shared configuration.
-  SHARED_CONFIG = [
-    "/usr/local/share/duck/#{CONFIG_NAME}",
-    "/usr/share/duck/#{CONFIG_NAME}",
-  ]
-
   ACTTIONS = {
     :build => Duck::Build,
     :enter => Duck::Enter,
@@ -34,11 +28,14 @@ module Duck
     :qemu => Duck::Qemu,
   }
 
+  def self.resource_path(path)
+    File.expand_path File.join('..', '..', path), __FILE__
+  end
+
   def self.parse_options(args)
     o = Hash.new
 
     working_directory = Dir.pwd
-    working_directory_config = File.join(working_directory, CONFIG_NAME)
 
     o[:target] = File.join working_directory, 'tmp', 'initrd'
     o[:initrd] = File.join working_directory, 'tmp', 'initrd.gz'
@@ -103,25 +100,14 @@ module Duck
       action_names = args.map{|a| a.to_sym}
     end
 
-    # Used when checking for direct call to binary.
-    binary_root = File.dirname File.dirname(File.expand_path($0))
-    binary_config = File.join binary_root, CONFIG_NAME
-
     o[:bootstrap_status] = File.join o[:target], '.debootstrap'
 
     # add default configuration if none is specified.
     if o[:_configs].empty?
-      o[:_configs] << working_directory_config
+      o[:_configs] << File.join(working_directory, CONFIG_NAME)
     end
 
-    # If binary_config exists then we are running the command from the
-    # development directory, include configuration from here instead of shared
-    # paths.
-    if File.file? binary_config
-      o[:_configs] = [binary_config] + o[:_configs]
-    else
-      o[:_configs] = SHARED_CONFIG + o[:_configs]
-    end
+    o[:_configs] = [resource_path(CONFIG_NAME)] + o[:_configs]
 
     o[:_configs].uniq!
     o[:_configs].reject!{|i| not File.file? i}
@@ -180,4 +166,8 @@ module Duck
 
     return 0
   end
+end
+
+if __FILE__ == $0
+    exit Duck::main(ARGV)
 end

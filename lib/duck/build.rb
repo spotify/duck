@@ -1,6 +1,7 @@
-require 'chroot_utils'
 require 'fileutils'
-require 'logging'
+
+require 'duck/chroot_utils'
+require 'duck/logging'
 
 module Duck
   class Build

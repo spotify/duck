@@ -1,4 +1,4 @@
-require 'spawn_utils'
+require 'duck/spawn_utils'
 
 module Duck
   class Qemu
