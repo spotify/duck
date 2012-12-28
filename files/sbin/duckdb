@@ -4,189 +4,204 @@
 #
 
 import dbm
+import argparse
+import urllib2
+import json
+import contextlib
 
-DB = "/var/duckdb.dbm"
-
-
-def usage():
-    print "usage: duckdb <action> ..."
-    print "  actions:"
-    print "    set <key> <value> - Set <key> as <value>"
-    print "    get <key>         - Get <key>"
-    print "    list              - List all keys and values"
-    print "    cmdline <path>    - Read kernel commandline from path"
-    print "    file <path>       - Read variables from path"
-    print "    url <url>         - Read variables from url"
+VERSION = "0.1.0"
+DEFAULT_DB = "/var/duckdb.dbm"
 
 
-def action_get(args):
-    if len(args) < 1:
-        usage()
-        return 1
+def update_db(function):
+    def inner(ns):
+        with contextlib.closing(dbm.open(ns.db, "c")) as db:
+            for key, value in function(ns):
+                if ns.ns:
+                    key = "%s/%s" % (ns.ns, key)
+                db[key] = value
 
-    if len(args) > 1:
-        default = args[1]
-    else:
-        default = None
+        return 0
 
-    key = args[0]
-
-    db = dbm.open(DB, "c")
-
-    try:
-        print "RET=\"%s\";" % (db[key])
-    except KeyError:
-        if default is None:
-            return 1
-        print "RET=\"%s\";" % (default)
-    finally:
-        db.close()
-
-    return 0
+    return inner
 
 
-def action_set(args):
-    if len(args) != 2:
-        usage()
-        return 1
-
-    key = args[0]
-    value = args[1]
-
-    db = dbm.open(DB, "c")
-
-    try:
-        db[key] = value
-    finally:
-        db.close()
-
-    return 0
-
-
-def action_cmdline(args):
-    if len(args) != 1:
-        usage()
-        return 1
-
-    path = args[0]
-
-    cmd = open(path)
-
-    try:
-        cmdline = cmd.read()
-    finally:
-        cmd.close()
-
-    db = dbm.open(DB, "c")
-
-    try:
-        for c in cmdline.split(" "):
-            c = c.strip()
-
-            if not c:
-                continue
-
-            if "/" not in c:
-                continue
-
-            key, value = c.split("=", 2)
-            db[(key)] = value
-    finally:
-        db.close()
-
-    return 0
-
-
-def action_list(args):
-    if len(args) != 0:
-        usage()
-        return
-
-    db = dbm.open(DB, "c")
-
-    try:
-        for key in db.keys():
-            print key, db[key]
-    finally:
-        db.close()
-
-
-def read_config_from_file(db, fp):
-    for line in fp.readlines():
+def read_config(ns, fd):
+    for line in fd:
         line = line.strip()
 
         if line.startswith("#") or not line:
             continue
 
         key, value = line.split(" ", 2)
-        db[key] = value
+        yield key, value
 
 
-def action_file(args):
-    if len(args) != 1:
-        usage()
-        return 1
+def flatten_dict(doc, keys=[]):
+    result = dict()
 
-    path = args[0]
+    for key, value in doc.items():
+        this_keys = keys + [key]
 
-    path_fd = open(path)
-    db = dbm.open(DB, "c")
+        if isinstance(value, dict):
+            result.update(flatten_dict(value, this_keys))
+        else:
+            result["/".join(this_keys)] = value
 
-    try:
-        read_config_from_file(db, path_fd)
-    finally:
-        path_fd.close()
-        db.close()
+    return result
+
+
+def read_json(ns, fd):
+    doc = json.load(fd)
+
+    doc = flatten_dict(doc)
+
+    for key, value in doc.items():
+        if not isinstance(value, str):
+            continue
+        yield str(key), str(value)
+
+
+def action_get(ns):
+    with contextlib.closing(dbm.open(ns.db, "c")) as db:
+        ok = True
+
+        try:
+            value = db[ns.key]
+        except KeyError:
+            value = ns.default
+
+        if value is None:
+            ok = False
+            value = ""
+
+        if ns.sh:
+            print "DUCK_RETURN=\"%s\";" % (value,)
+            print "DUCK_OK=\"%s\"" % ("yes" if ok else "no",)
+            return 0
+
+        if not ok:
+            return 1
+
+        print value
 
     return 0
 
 
-def action_url(args):
-    import urllib2
-
-    if len(args) != 1:
-        usage()
-        return 1
-
-    url = args[0]
-
-    url_fd = urllib2.urlopen(url)
-
-    db = dbm.open(DB, "c")
-
-    try:
-        read_config_from_file(db, url_fd)
-    finally:
-        url_fd.close()
-        db.close()
-
-    return 0
+def action_set(ns):
+    yield ns.key, ns.value
 
 
-actions = {
-    "get": action_get,
-    "set": action_set,
-    "list": action_list,
-    "cmdline": action_cmdline,
-    "file": action_file,
-    "url": action_url,
-}
+@update_db
+def action_cmdline(ns):
+    with open(ns.path) as f:
+        cmdline = f.read()
+
+    for c in cmdline.split(" "):
+        c = c.strip()
+
+        if not c:
+            continue
+
+        if '=' not in c:
+            continue
+
+        key, value = c.split("=", 2)
+        yield key, value
+
+
+@update_db
+def action_file(ns):
+    with open(ns.path) as fd:
+        if ns.json:
+            generator = read_json(ns, fd)
+        else:
+            generator = read_config(ns, fd)
+
+        for key, value in generator:
+            yield key, value
+
+
+@update_db
+def action_url(ns):
+    with contextlib.closing(urllib2.urlopen(ns.url)) as fd:
+        if ns.json:
+            generator = read_json(ns, fd)
+        else:
+            generator = read_config(ns, fd)
+
+        for key, value in generator:
+            yield key, value
+
+
+def action_list(ns):
+    with contextlib.closing(dbm.open(ns.db, "c")) as db:
+        for key in db.keys():
+            print key, db[key]
 
 
 def main(args):
-    if len(args) < 1:
-        usage()
-        return 1
+    parser = argparse.ArgumentParser(
+        usage="usage: %(prog)s [options] <action> [action-options]")
 
-    action = args[0]
+    parser.add_argument("-v", "--version", action='version', version=VERSION)
 
-    action_func = actions.get(action)
+    parser.add_argument(
+        "--db",
+        metavar="<path>",
+        default=DEFAULT_DB)
 
-    if action_func is None:
-        print >>sys.stderr, "no such action: %s" % (action)
-        return 1
+    parser.add_argument(
+        "--ns",
+        metavar="<namespace>",
+        default=None)
 
-    return action_func(args[1:])
+    parsers = parser.add_subparsers()
+
+    get_parser = parsers.add_parser("get", help="Get a value")
+    get_parser.add_argument("key")
+    get_parser.add_argument("default", nargs='?', default=None)
+    get_parser.add_argument("--sh",
+                            help=("Output return value as a shell "
+                                  "evaluable string"),
+                            default=False,
+                            action='store_true')
+    get_parser.set_defaults(action=action_get)
+
+    set_parser = parsers.add_parser("set", help="Set a value")
+    set_parser.add_argument("key")
+    set_parser.add_argument("value")
+    set_parser.set_defaults(action=action_set)
+
+    list_parser = parsers.add_parser("list", help="List all values")
+    list_parser.set_defaults(action=action_list)
+
+    cmdline_parser = parsers.add_parser(
+        "cmdline",
+        help="Read values from a /proc/cmdline style file")
+    cmdline_parser.add_argument("path")
+    cmdline_parser.set_defaults(action=action_cmdline)
+
+    file_parser = parsers.add_parser(
+        "file",
+        help="Read values from a file")
+    file_parser.add_argument("path")
+    file_parser.add_argument("--json",
+                             help="treat input as a json document",
+                             default=False,
+                             action='store_true')
+    file_parser.set_defaults(action=action_file)
+
+    url_parser = parsers.add_parser("url", help="Fetch values from an url")
+    url_parser.add_argument("url")
+    url_parser.add_argument("--json",
+                            help="treat input as a json document",
+                            default=False,
+                            action='store_true')
+    url_parser.set_defaults(action=action_url)
+
+    ns = parser.parse_args(args)
+    return ns.action(ns)
 
 if __name__ == "__main__":
     import sys

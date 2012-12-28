@@ -74,14 +74,17 @@ in_target() {
 
 # get single duckdb variable
 a_get() {
-    export RET=""
+    export DUCK_RETURN=""
+    export DUCK_OK="yes"
 
-    eval $(duckdb get "$@")
+    eval $(duckdb get --sh "$@")
 
-    if [[ $# -eq 1 && -z "$RET" ]]; then
+    if [[ "$DUCK_OK" != "yes" ]]; then
         error "Missing required duckdb variable: $1"
         exit 1
     fi
+
+    export RET="$DUCK_RETURN"
 }
 
 # set single duckdb variable

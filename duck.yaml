@@ -11,6 +11,8 @@ build_sources:
 
 packages:
   - binutils
+  - python-argparse
+  - python
   - grub2
   - ifupdown
   - iproute
