@@ -1,6 +1,3 @@
 #!/bin/bash
-
-echo "(press 'enter' to login)"
-read
-
+read -p "(press 'enter' to login)"
 exec /bin/login -f root

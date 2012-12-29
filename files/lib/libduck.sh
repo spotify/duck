@@ -6,7 +6,8 @@ export DUCKDB_CONF="/duckdb.conf"
 # if this file exists, the installation loop should not run.
 export INSTALLER_STATUS="/.installer_status"
 # default logging location.
-export DEFAULT_LOG="/var/log/duckinstaller.log"
+export DEFAULT_LOG="/var/log/duckinstall.log"
+export DUCK_LOGIN="/sbin/ducklogin"
 
 info()    { echo "    INFO : $@"; }
 warning() { echo " WARNING : $@"; }
@@ -33,7 +34,7 @@ timeout_with() {
 
 run_installer() {
     for script in /lib/duck.d/[0-9][0-9]-*; do
-        [ ! -f $script ] && continue
+        [[ ! -x $script ]] && continue
 
         info "Running $script"
         logger -t installer "running: $script"
@@ -75,7 +76,7 @@ in_target() {
 # get single duckdb variable
 a_get() {
     export DUCK_RETURN=""
-    export DUCK_OK="yes"
+    export DUCK_OK="no"
 
     eval $(duckdb get --sh "$@")
 

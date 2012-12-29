@@ -9,10 +9,12 @@ log="$RET"
 
 if [[ -f $INSTALLER_STATUS ]]; then
     info "Not running installation, $INSTALLER_STATUS exists"
-else
-    info "Running installation, logging to $log"
-    run_installer | tee -a $log
-    touch $INSTALLER_STATUS
+    exec $DUCK_LOGIN
 fi
 
-exec /sbin/ducklogin
+info "Running installation, logging to $log and syslog"
+run_installer 2>&1 tee -a $log | logger -s -t duckinstall
+
+touch $INSTALLER_STATUS
+
+exec $DUCK_LOGIN
