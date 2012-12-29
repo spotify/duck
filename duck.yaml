@@ -14,11 +14,9 @@ packages:
   - python-argparse
   - python
   - grub2
-  - ifupdown
   - iproute
   - isc-dhcp-client
   - net-tools
-  - netbase
   - openssh-server
   - pciutils
   - psutils
@@ -56,21 +54,13 @@ fixes:
 
 services:
   - name: hostname.sh
-    start: '05 S'
+    start: '00 S'
   - name: mountkernfs.sh
-    start: '05 S'
-  - name: udev
-    start: '10 S'
-  - name: lvm2
-    start: '20 S'
-    stop: '20 0 6'
+    start: '00 S'
   - name: mountdevsubfs.sh
-    start: '06 S'
-  - name: ssh
-    start: '10 2'
-    stop: '10 0 6'
-  - name: networking
-    start: '20 S'
-    stop: '10 0 6'
-
-
+    start: '00 S'
+  - name: udev
+    start: '00 S'
+  - name: syslog-ng
+    start: '00 2'
+    stop: '00 0 6'

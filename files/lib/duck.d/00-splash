@@ -30,5 +30,3 @@ cat - <<ENDL
 ENDL
 
 timeout_with 3 "Installation starting in..."
-
-reset

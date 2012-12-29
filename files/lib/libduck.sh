@@ -17,17 +17,17 @@ timeout_with() {
     timeout=$1
     title=$2
 
-    echo -n "$title $timeout, "
+    echo "$title $timeout,"
 
     i=$timeout
     while [[ $i -gt 1 ]]; do
-        sleep 1
         i=$[ $i - 1 ]
-        echo -n "$i, "
+        sleep 1
+        echo "$i,"
     done
 
     sleep 1
-    echo "OK"
+    echo "OK."
 
     return 0
 }
@@ -56,7 +56,7 @@ in_target() {
     a_get duck/target
     target="$RET"
 
-    command="$1"
+    command="$@"
 
     info "in-target: $command"
 
@@ -66,7 +66,7 @@ in_target() {
         export LC_ALL=C
         export LANGUAGE=C
         export LANG=C
-        exec chroot $target bash -c "$command"
+        exec chroot $target $command
     )
 
     return $?

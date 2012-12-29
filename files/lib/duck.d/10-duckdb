@@ -12,6 +12,7 @@ if [[ -f $DUCKDB_CONF ]]; then
 fi
 
 info "duckdb: loading /proc/cmdline"
+
 if ! duckdb cmdline /proc/cmdline; then
     error "duckdb: Failed to load kernel arguments"
     exit 1

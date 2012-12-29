@@ -13,7 +13,7 @@ if [[ -f $INSTALLER_STATUS ]]; then
 fi
 
 info "Running installation, logging to $log and syslog"
-run_installer 2>&1 tee -a $log | logger -s -t duckinstall
+run_installer 2>&1 | tee -a $log | logger -t duckinstall -s
 
 touch $INSTALLER_STATUS
 

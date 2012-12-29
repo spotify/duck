@@ -9,7 +9,16 @@ if [[ "$DUCK_MODE" == "testing" ]]; then
     exit 0
 fi
 
-info "Setting up network with dhcp"
+info "network: Setting up loopback interface"
+
+info "network: lo: address"
+ip addr add 127.0.0.1/8 dev lo || true
+info "network: lo: route"
+ip route add 127.0.0.0/8 dev lo || true
+info "network: lo: link up"
+ip link set lo up
+
+info "network: eth0: Configuring using dhcp"
 
 if ! dhclient eth0; then
     error "Network setup failed"

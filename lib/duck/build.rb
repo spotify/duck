@@ -268,7 +268,7 @@ module Duck
       setup_policy_rcd
       install_packages
       install_manifest
-      #configure_boot_services
+      configure_boot_services
       return 0
     end
   end
