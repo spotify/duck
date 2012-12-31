@@ -22,3 +22,4 @@ debootstrap $suite $target $mirror
 
 mount --bind /dev $target/dev
 mount -t proc none $target/proc
+mount -t sysfs none $target/sys

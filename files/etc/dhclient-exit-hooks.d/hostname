@@ -9,4 +9,9 @@ fi
 hostname=$(host $new_ip_address | cut -d ' ' -f 5)
 hostname=${hostname%*.}
 echo $hostname > /etc/hostname
+
+# update the hostname
 hostname $hostname
+
+# restart syslog to use the correct hostname.
+invoke-rc.d syslog-ng restart

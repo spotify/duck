@@ -20,13 +20,14 @@ module Duck
       [false, :bootstrap_install],
       [true, :bootstrap_configure],
       [true, :bootstrap_end],
-      [true, :policy_rcd],
+      [true, :add_policy_rcd],
       [true, :prepare_apt],
       [true, :packages_install],
       [true, :packages_configure],
       [true, :files_copy],
       [true, :configure_boot_services],
-    ] 
+      [true, :remove_policy_rcd],
+    ]
 
     include Logging
     include ChrootUtils
@@ -303,7 +304,7 @@ module Duck
       write_apt_preferences
     end
 
-    def policy_rcd
+    def add_policy_rcd
       policy_rcd = File.join @target, 'usr', 'sbin', 'policy-rc.d'
 
       if File.file? policy_rcd
@@ -317,6 +318,12 @@ module Duck
         f.write("#/bin/sh\n")
         f.write("exit 101\n")
       end
+    end
+
+    def remove_policy_rcd
+      policy_rcd = File.join @target, 'usr', 'sbin', 'policy-rc.d'
+      log.debug "Removing Policy: #{policy_rcd}"
+      FileUtils.rm_f policy_rcd
     end
 
     def disable_runlevel(runlevel)
