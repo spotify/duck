@@ -6,6 +6,7 @@ module Logging
   end
 
   @loggers = {}
+  @log_level = Logger::INFO
 
   class << self
     def logger_for(name)
@@ -15,7 +16,16 @@ module Logging
     def setup_logger_for(name)
       log = Logger.new(STDOUT)
       log.progname = name
+      log.level = @log_level
       log
+    end
+
+    def set_level(level)
+      @loggers.each do |key, value|
+        value.level = level
+      end
+
+      @log_level = level
     end
   end
 end

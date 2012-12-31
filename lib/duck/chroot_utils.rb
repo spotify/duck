@@ -5,9 +5,10 @@ module ChrootUtils
 
   CHROOT = 'chroot'
   APT_GET = 'apt-get'
+  APT_KEY = 'apt-key'
   DPKG = 'dpkg'
   UPDATE_RCD = 'update-rc.d'
-  SH = 'sh'
+  SH = 'bash'
 
   CHROOT_ENV = {
     'DEBIAN_FRONTEND' => 'noninteractive',
@@ -17,30 +18,34 @@ module ChrootUtils
     'LANG' => 'C',
   }
 
-  def local_chroot(args, options={})
+  def chroot(args, options={})
     spawn [CHROOT] + args, options
   end
 
   # for doing automated tasks inside of the chroot.
-  def auto_chroot(args)
-    log.info "chroot: #{args.join ' '}"
-    env = Hash.new(@env || {}).merge(CHROOT_ENV)
-    local_chroot [@target] + args, :env => env
+  def auto_chroot(args, opts={})
+    log.debug "chroot: #{args.join ' '}"
+    opts[:env] = (opts[:env] || {}).update(@chroot_env || {}).merge(CHROOT_ENV)
+    chroot [@target] + args, opts
   end
 
-  def apt_get(*args)
+  def in_apt_get(*args)
     auto_chroot [APT_GET, '-y', '--force-yes'] + args
   end
 
-  def dpkg(*args)
+  def in_apt_key(args, opts)
+    auto_chroot [APT_KEY] + args, opts
+  end
+
+  def in_dpkg(*args)
     auto_chroot [DPKG] + args
   end
 
-  def shell(command)
+  def in_shell(command)
     auto_chroot [SH, '-c', command]
   end
 
-  def update_rcd(*args)
+  def in_update_rcd(*args)
     auto_chroot [UPDATE_RCD] + args
   end
 end

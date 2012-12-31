@@ -1,0 +1,8 @@
+#!/bin/bash
+# Remove any persistent udev rules
+
+set -e
+
+case "$1" in
+  "final") rm -f /etc/udev/rules.d/*; ;;
+esac

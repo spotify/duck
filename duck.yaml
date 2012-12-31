@@ -15,6 +15,7 @@ packages:
   - python
   - grub2
   - iproute
+  - bind9-host
   - isc-dhcp-client
   - net-tools
   - openssh-server
@@ -33,6 +34,9 @@ files:
     to: /etc/
   - from: /etc/network/*
     to: /etc/network/
+  - from: /etc/dhclient-exit-hooks.d/*
+    to: /etc/dhcp/dhclient-exit-hooks.d/
+    mode: 0755
 # installer library
   - from: /lib/libduck.sh
     to: /lib/
@@ -51,6 +55,8 @@ fixes:
   - squeeze-fix
   # disable initrd generation and grub setup for installed kernels.
   - kernel-boot-fix
+  # remove persistent udev rules.
+  - clear-persistent-udev
 
 services:
   - name: hostname.sh
@@ -62,5 +68,21 @@ services:
   - name: udev
     start: '00 S'
   - name: syslog-ng
-    start: '00 2'
-    stop: '00 0 6'
+    start: '00 2 3 4 5'
+    stop: '00 0 1 6'
+
+keyring:
+  keyserver: "subkeys.pgp.net"
+  keys:
+# debian archive keys
+    - "473041FA"
+    - "B98321F9"
+# puppetlabs
+    - "4BD6EC30"
+# other debian keys for older archives
+    - "30E974EE"
+    - "46925553"
+    - "55BE302B"
+    - "65FFB764"
+    - "6D849617"
+    - "97BB3B58"

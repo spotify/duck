@@ -1,0 +1,12 @@
+#!/bin/sh
+
+if [ "$reason" != BOUND ] && [ "$reason" != RENEW ] \
+   && [ "$reason" != REBIND ] && [ "$reason" != REBOOT ]
+then
+        return
+fi
+
+hostname=$(host $new_ip_address | cut -d ' ' -f 5)
+hostname=${hostname%*.}
+echo $hostname > /etc/hostname
+hostname $hostname

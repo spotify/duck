@@ -2,6 +2,7 @@ require 'optparse'
 require 'fileutils'
 require 'yaml'
 require 'find'
+require 'logger'
 
 require 'duck/logging'
 require 'duck/build'
@@ -17,7 +18,6 @@ module Duck
   # environment to prevent tasks from being interactive.
   DEFAULT_SHELL = '/bin/bash'
   FILES_DIR = 'files'
-  FIXES_DIR = 'fixes'
   CONFIG_NAME = 'duck.yaml'
   CONFIG_ARRAYS = [:files, :packages, :transports, :preferences, :fixes, :services]
 
@@ -37,10 +37,14 @@ module Duck
 
     working_directory = Dir.pwd
 
-    o[:target] = File.join working_directory, 'tmp', 'initrd'
-    o[:initrd] = File.join working_directory, 'tmp', 'initrd.gz'
+    o[:temp] = File.join working_directory, 'tmp'
+    o[:keys_dir] = File.join working_directory, 'keys'
+    o[:target] = File.join o[:temp], 'initrd'
+    o[:initrd] = File.join o[:temp], 'initrd.gz'
+    o[:gpg_homedir] = File.join o[:temp], 'gpg'
     o[:kernel] = File.join working_directory, 'vmlinuz'
-    o[:minimize] = false
+    o[:no_minimize] = false
+    o[:keep_minimized] = false
     o[:files] = []
     o[:services] = []
     o[:packages] = []
@@ -48,9 +52,7 @@ module Duck
     o[:fixes] = []
     o[:preferences] = []
     o[:shell] = DEFAULT_SHELL
-    o[:fixes_dir] = FIXES_DIR
     o[:files_dir] = FILES_DIR
-    o[:debootstrap_tarball] = File.join working_directory, 'tmp', 'debootstrap.tar'
     o[:_configs] = []
 
     action_names = [:build, :pack]
@@ -63,9 +65,19 @@ module Duck
         o[:target] = dir
       end
 
-      opts.on('--minimize',
-              'Minimize the installation right before packing') do |dir|
-        o[:minimize] = true
+      opts.on('--no-minimize',
+              'Do not minimize the installation right before packing') do |dir|
+        o[:no_minimize] = true
+      end
+
+      opts.on('--keep-minimized',
+              'Keep the minimized version of the initrd around') do |dir|
+        o[:keep_minimized] = true
+      end
+
+      opts.on('--debug',
+              'Switch on debug logging') do |dir|
+        Logging::set_level Logger::DEBUG
       end
 
       opts.on('-o <file>', '--output <file>',
@@ -123,16 +135,19 @@ module Duck
   end
 
   def self.prepare_options(o)
-    unless File.directory? o[:target]
-      log.info "Creating target directory: #{o[:target]}"
-      FileUtils.mkdir_p o[:target]
-    end
-
     raise "No configuration found" if o[:_configs].empty?
 
-    o[:target_fixes] = File.join o[:target], o[:fixes_dir]
+    [:target].each do |s|
+      next if File.directory? o[s]
+      log.info "Creating directory '#{s}' on #{o[s]}"
+      FileUtils.mkdir_p o[s]
+    end
 
-    FileUtils.mkdir_p o[:target] unless File.directory? o[:target]
+    unless File.directory? o[:gpg_homedir]
+      log.info "Creating directory GPG home directory on #{o[:gpg_homedir]}"
+      FileUtils.mkdir_p o[:gpg_homedir]
+      FileUtils.chmod 0700, o[:gpg_homedir]
+    end
 
     o[:_roots] = o[:_configs].map{|c| File.dirname c}
 

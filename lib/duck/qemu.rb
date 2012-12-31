@@ -27,7 +27,7 @@ module Duck
       ] + opts
 
       log.info "Executing QEMU on #{@initrd}"
-      local_qemu args
+      qemu *args
     end
   end
 end

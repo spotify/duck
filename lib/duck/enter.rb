@@ -9,12 +9,12 @@ module Duck
     def initialize(options)
       @target = options[:target]
       @shell = options[:shell]
-      @env = options[:env] || {}
+      @chroot_env = options[:env] || {}
     end
 
     def execute
       log.info "Entering #{@target}"
-      local_chroot [@target, @shell], :env => @env
+      chroot [@target, @shell], :env => @chroot_env
     end
   end
 end

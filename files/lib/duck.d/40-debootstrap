@@ -18,4 +18,7 @@ if [[ ! -d $target ]]; then
     exit 1
 fi
 
-exec debootstrap $suite $target $mirror
+debootstrap $suite $target $mirror
+
+mount --bind /dev $target/dev
+mount -t proc none $target/proc

@@ -1,11 +1,13 @@
 #!/bin/bash
+# Make sure that the kernel does not generate an initramfs.
+# Clear /boot before packages are being configured.
 
 set -e
 
 status_code=0
 
 case "$1" in
-    "pre-configure")
+    "pre-packages-configure")
         echo "Disabling generation of an initramfs"
 
         rm -rf /etc/kernel/postinst.d
@@ -42,7 +44,7 @@ case "$1" in
             depmod $version
         done
         ;;
-    "post-configure")
+    "final")
         echo "Clearing /boot"
         rm -rf /boot
         ;;

@@ -4,32 +4,67 @@ require 'duck/chroot_utils'
 require 'duck/logging'
 
 module Duck
+  class StepError < Exception
+  end
+
   class Build
+    FIXES = 'fixes'
     DEFAULT_TYPE = 'deb'
     DEFAULT_COMPONENTS = ['main']
+    DEFAULT_SUITE = 'squeeze'
+
+    # define all the different steps involved.
+    STEPS = [
+      [false, :check_keyring],
+      [false, :bootstrap_tarball],
+      [false, :bootstrap_install],
+      [true, :bootstrap_configure],
+      [true, :bootstrap_end],
+      [true, :policy_rcd],
+      [true, :prepare_apt],
+      [true, :packages_install],
+      [true, :packages_configure],
+      [true, :files_copy],
+      [true, :configure_boot_services],
+    ] 
 
     include Logging
     include ChrootUtils
 
     def initialize(options)
-      @env = options[:env] || {}
-      @packages = options[:packages] || []
-      @debootstrap = options[:debootstrap] || {}
-      @debootstrap_tarball = options[:debootstrap_tarball]
       @target = options[:target]
+      @temp = options[:temp]
+      @keys_dir = options[:keys_dir]
+      @chroot_env = options[:env] || {}
+      @packages = options[:packages] || []
+      @gpg_homedir = options[:gpg_homedir]
       @bootstrap_status = options[:bootstrap_status]
       @fixes = options[:fixes]
-      @fixes_dir = options[:fixes_dir]
       @files_dir = options[:files_dir]
-      @target_fixes = options[:target_fixes]
       @build_sources = options[:build_sources]
       @main_sources = options[:main_sources]
       @transports = options[:transports]
+      @bootstrap = validate_bootstrap options[:bootstrap]
+      @keyring = validate_keyring options[:keyring]
       @files = validate_array [:from, :to], options[:files]
       @services = validate_array [:name], options[:services]
       @preferences = validate_array [:package, :pin, :priority], options[:preferences]
-      @debootstrap[:tarball] = @debootstrap_tarball if @debootstrap_tarball
       @_roots = options[:_roots]
+      @bootstrap_tarball = File.join @temp, @bootstrap[:tarball]
+      @target_fixes = File.join @target, FIXES
+    end
+
+    def validate_keyring(opts)
+      return nil unless opts
+      raise "Missing required keyring option 'keyserver'" unless opts[:keyserver]
+      opts[:keys] = [] unless opts[:keys]
+      opts
+    end
+
+    def validate_bootstrap(opts)
+      raise "Missing bootstrap options" unless opts
+      opts[:suite] = default_suite unless opts[:suite]
+      return opts
     end
 
     def validate_item(keys, item)
@@ -40,59 +75,91 @@ module Duck
       items.each {|item| validate_item keys, item}
     end
 
-    def early_bootstrap
-      args = @debootstrap.clone
+    def check_keyring
+      missing_keys = []
 
-      if @debootstrap_tarball
-        unless File.file? @debootstrap_tarball
-          log.info "Building tarball: #{@debootstrap_tarball}"
-          local_debootstrap @target, "--make-tarball=#{@debootstrap_tarball}", @debootstrap
-        end
+      @keyring[:keys].each do |key|
+        key_path = File.join(@keys_dir, "#{key}.gpg")
+        next if File.file? key_path
+        missing_keys << {:id => key, :path => key_path}
       end
 
-      log.info "Early stage debootstrap in #{@target}"
-      local_debootstrap @target, '--foreign', @debootstrap
-    end
+      return if missing_keys.empty?
 
-    def late_bootstrap
-      log.info "Late stage debootstrap in #{@target}"
-      local_chroot [@target, '/debootstrap/debootstrap', '--second-stage']
-    end
+      log.error "Some required keys are missing from your keys directory"
 
-    def all_bootstrap
-      if File.file? @bootstrap_status
-        log.info "Already Bootstrapped: #{@bootstrap_status}"
-        return
+      missing_keys.each do |key|
+        log.error "Missing key: id: #{key[:id]}, path: #{key[:path]}"
       end
 
-      log.info "Bootstrapping: #{@target}"
-      early_bootstrap
-      run_fixes "pre-bootstrap"
-      late_bootstrap
-      run_fixes "post-bootstrap"
+      raise StepError.new "Some required keys are missing from the keys directory"
+    end
 
+    def bootstrap_tarball
+      return if File.file? @bootstrap_status
+      return unless @bootstrap[:tarball]
+      return if File.file? @bootstrap_tarball
+
+      log.debug "Building tarball: #{@bootstrap_tarball}"
+
+      opts = {
+        :mirror => @bootstrap[:mirror],
+        :extra => ["--make-tarball=#{@bootstrap_tarball}"],
+      }
+
+      debootstrap @bootstrap[:suite], @target, opts
+    end
+
+    def bootstrap_install
+      return if File.file? @bootstrap_status
+
+      log.debug "Early stage bootstrap in #{@target}"
+
+      opts = {
+        :mirror => @bootstrap[:mirror],
+        :extra => ["--foreign"],
+      }
+
+      if @bootstrap[:tarball]
+        opts[:extra] << "--unpack-tarball=#{@bootstrap_tarball}"
+      end
+
+      debootstrap @bootstrap[:suite], @target, opts
+    end
+
+    def bootstrap_configure
+      return if File.file? @bootstrap_status
+
+      log.debug "Late stage bootstrap in #{@target}"
+      chroot [@target, '/debootstrap/debootstrap', '--second-stage']
+    end
+
+    def bootstrap_end
       FileUtils.touch @bootstrap_status
     end
 
-    def run_fixes(stage)
+    def fixes(stage)
+      log.info "fixes: #{stage}"
+
       FileUtils.mkdir_p @target_fixes unless File.directory? @target_fixes
 
       @_roots.each do |root|
         @fixes.each do |fix_name|
-          fix_source = File.join root, @fixes_dir, fix_name
-          next unless File.file? fix_source
+          source = File.join root, FIXES, fix_name
+          target = File.join @target_fixes, fix_name
+          executable = File.join '/', FIXES, fix_name
 
-          fix_target = File.join @target_fixes, fix_name
-          fix_run = File.join '/', @fixes_dir, fix_name
+          next unless File.file? source
 
-          unless File.file? fix_target
-            log.info "Copying fix #{fix_source} -> #{fix_target}"
-            FileUtils.cp fix_source, fix_target
-            FileUtils.chmod 0755, fix_target
+          unless File.file? target and File.mtime(source) <= File.mtime(target)
+            log.debug "copying #{source} -> #{target}"
+            FileUtils.cp source, target
+            FileUtils.chmod 0755, target
           end
 
-          log.info "Running fix '#{fix_name}': #{fix_run} #{stage}"
-          local_chroot [@target, fix_run, stage]
+          log.debug "fix: #{fix_name} #{stage}"
+          exitcode = chroot [@target, executable, stage]
+          raise "fix failed: #{fix_name} #{stage}" if exitcode != 0
         end
       end
     end
@@ -113,10 +180,8 @@ module Duck
       {:files => source_files, :to => target_to, :mode => mode}
     end
 
-    def install_manifest
+    def files_copy
       return if @files.empty?
-
-      log.info "Installing Files"
 
       @_roots.each do |root|
         @files.each do |file|
@@ -128,20 +193,22 @@ module Duck
 
           file[:files].each do |source|
             next unless File.file? source
+
             target = File.join file[:to], File.basename(source)
+
             # Skip if target already exists and is identical to source.
             next if File.file? target and FileUtils.compare_file source, target
-            log.info "Copying File: #{source} -> #{target}"
+
+            log.debug "Copying File: #{source} -> #{target}"
+
             FileUtils.cp source, target
             FileUtils.chmod file[:mode], target
           end
         end
       end
-
-      log.info "Done Installing Files"
     end
 
-    def install_packages
+    def packages_install
       return if @packages.empty?
 
       options = []
@@ -152,23 +219,23 @@ module Duck
 
       options = options.map{|option| ['-o', option]}.flatten
 
-      log.info "Installing Packages"
+      log.debug "Installing Packages"
       packages_repr = @packages.join ' '
 
-      log.info "Installing Packages: #{packages_repr}"
-      apt_get *(options + ['install', '--'] + @packages)
+      log.debug "Installing Packages: #{packages_repr}"
+      in_apt_get *(options + ['install', '--'] + @packages)
+    end
 
-      log.info "Configuring Packages"
-      run_fixes "pre-configure"
-      dpkg '--configure', '-a'
-      run_fixes "post-configure"
+    def packages_configure
+      log.debug "Configuring Packages"
+      in_dpkg '--configure', '-a'
     end
 
     def sources_list(sources, name)
       sources_dir = File.join @target, 'etc', 'apt', 'sources.list.d'
       sources_list = File.join sources_dir, "#{name}.list"
 
-      log.info "Writing Sources #{sources_list}"
+      log.debug "Writing Sources #{sources_list}"
 
       File.open(sources_list, 'w', 0644) do |f|
         sources.each do |source|
@@ -190,7 +257,7 @@ module Duck
 
       return if File.file? apt_preferences
 
-      log.info "Writing Preferences #{apt_preferences}"
+      log.debug "Writing Preferences #{apt_preferences}"
 
       File.open(apt_preferences, 'w', 0644) do |f|
         f.write "# generated by duck\n"
@@ -204,31 +271,48 @@ module Duck
       end
     end
 
+    def add_apt_keys
+      log.debug "Adding APT keys"
+
+      @keyring[:keys].each do |key|
+        log.debug "Adding key'#{key}'"
+        key_path = File.join @keys_dir, "#{key}.gpg"
+
+        File.open(key_path, 'r') do |f|
+          in_apt_key ['add', '-'], {:input_file => f}
+        end
+      end
+    end
+
     def prepare_apt
       raise "Required section 'build_sources' missing" unless @build_sources
+
+      add_apt_keys
+
       sources_list @build_sources, 'build'
 
       unless @transports.empty?
         transports = @transports.map{|t| "apt-transport-#{t}"}
-        log.info "Installing extra transports: #{transports.join ' '}"
-        apt_get 'update'
-        apt_get 'install', *transports
+        log.debug "Installing extra transports: #{transports.join ' '}"
+        in_apt_get 'update'
+        in_apt_get 'install', *transports
       end
 
       sources_list @main_sources, 'main' if @main_sources
-      apt_get 'update'
+      in_apt_get 'update'
       write_apt_preferences
     end
 
-    def setup_policy_rcd
+    def policy_rcd
       policy_rcd = File.join @target, 'usr', 'sbin', 'policy-rc.d'
 
       if File.file? policy_rcd
-        log.info "Policy OK: #{policy_rcd}"
+        log.debug "Policy OK: #{policy_rcd}"
         return
       end
 
-      log.info "Writing Folicy: #{policy_rcd}"
+      log.debug "Writing Folicy: #{policy_rcd}"
+
       File.open(policy_rcd, 'w', 0755) do |f|
         f.write("#/bin/sh\n")
         f.write("exit 101\n")
@@ -244,8 +328,8 @@ module Duck
 
         if name =~ /^S..(.+)$/
           service = $1
-          log.info "Disabling Service '#{service}'"
-          update_rcd '-f', service, 'remove'
+          log.debug "Disabling Service '#{service}'"
+          in_update_rcd '-f', service, 'remove'
         end
       end
     end
@@ -258,17 +342,30 @@ module Duck
         args = [service[:name]]
         args += ['start'] + service[:start].split(' ') if service[:start]
         args += ['stop'] + service[:stop].split(' ') if service[:stop]
-        update_rcd '-f', *args
+        in_update_rcd '-f', *args
       end
     end
 
     def execute
-      all_bootstrap
-      prepare_apt
-      setup_policy_rcd
-      install_packages
-      install_manifest
-      configure_boot_services
+      STEPS.each do |run_fixes, step_method|
+        name = step_method.to_s.gsub '_', '-'
+
+        log.info "#{name}: running"
+        fixes "pre-#{name}" if run_fixes
+
+        begin
+          self.method(step_method).call
+        rescue StepError
+          log.error "#{name}: #{$!}"
+          return
+        end
+
+        log.info "#{name}: done"
+        fixes "post-#{name}" if run_fixes
+      end
+
+      # run fixes for finalizing the setup.
+      fixes "final"
       return 0
     end
   end
