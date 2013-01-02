@@ -105,7 +105,10 @@ module Duck
 
       opts = {
         :mirror => @bootstrap[:mirror],
-        :extra => ["--make-tarball=#{@bootstrap_tarball}"],
+        :extra => [
+          "--make-tarball=#{@bootstrap_tarball}",
+          "--variant=minbase",
+        ],
       }
 
       debootstrap @bootstrap[:suite], @target, opts
@@ -118,7 +121,10 @@ module Duck
 
       opts = {
         :mirror => @bootstrap[:mirror],
-        :extra => ["--foreign"],
+        :extra => [
+          "--foreign",
+          "--variant=minbase",
+        ],
       }
 
       if @bootstrap[:tarball]

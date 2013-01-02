@@ -40,6 +40,8 @@ files:
 # installer library
   - from: /lib/libduck.sh
     to: /lib/
+  - from: /lib/python-duck/duck/*
+    to: /lib/python-duck/duck/
 # duck applications
   - from: /sbin/*
     to: /sbin/
@@ -47,6 +49,10 @@ files:
 # installation steps
   - from: /lib/duck.d/*
     to: /lib/duck.d/
+    mode: 0755
+# hooks
+  - from: /lib/duck-hooks.d/*
+    to: /lib/duck-hooks.d/
     mode: 0755
 
 fixes:

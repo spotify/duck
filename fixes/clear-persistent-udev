@@ -1,5 +1,7 @@
 #!/bin/bash
 # Remove any persistent udev rules
+# If the host system runs it's own udev daemon, there is a chance that installation
+# hooks will trigger the generation of persistent files.
 
 set -e
 

@@ -1,17 +1,40 @@
 #!/bin/bash
+set -e
 
 # static variables
 export DUCK_VERSION="0.1"
 export DUCKDB_CONF="/duckdb.conf"
+export DUCKDB_JSON="/duckdb.json"
 # if this file exists, the installation loop should not run.
 export INSTALLER_STATUS="/.installer_status"
 # default logging location.
 export DEFAULT_LOG="/var/log/duckinstall.log"
 export DUCK_LOGIN="/sbin/ducklogin"
+export DUCK_HOOKS="/lib/duck-hooks.d"
+export DUCK_PYTHONLIB="/lib/python-duck"
+export PYTHONPATH="$DUCK_PYTHONLIB"
 
-info()    { echo "    INFO : $@"; }
-warning() { echo " WARNING : $@"; }
-error()   { echo "   ERROR : $@"; }
+invoke_hook() {
+  name=$1
+  shift
+  path=$DUCK_HOOKS/$name
+  [[ -x $path ]] && ( $path "$@" || true )
+}
+
+info()    {
+  echo "INFO : $@";
+  invoke_hook log info "$@"
+}
+
+warning() {
+  echo "WARNING : $@";
+  invoke_hook log warning "$@"
+}
+
+error()   {
+  echo "ERROR : $@";
+  invoke_hook log error "$@"
+}
 
 timeout_with() {
     timeout=$1
@@ -33,14 +56,37 @@ timeout_with() {
 }
 
 run_installer() {
+    duckdb set --json duck/hooks-enabled false
+
+    info "duckdb: Loading Static Variables"
+
+    if [[ -f $DUCKDB_CONF ]]; then
+      info "duckdb: Loading $DUCKDB_CONF"
+      duckdb file $DUCKDB_CONF
+    fi
+
+    if [[ -f $DUCKDB_JSON ]]; then
+      info "duckdb: Loading $DUCKDB_JSON"
+      duckdb file --json $DUCKDB_JSON
+    fi
+
+    info "duckdb: Loading /proc/cmdline"
+
+    if ! duckdb cmdline /proc/cmdline; then
+        error "duckdb: Failed to load kernel arguments"
+        exit 1
+    fi
+
+    duckdb set --json duck/hooks-enabled true
+
     for script in /lib/duck.d/[0-9][0-9]-*; do
         [[ ! -x $script ]] && continue
 
-        info "Running $script"
+        info "Running: $script"
         logger -t installer "running: $script"
 
         if ! $script; then
-            error "Installation step failed!"
+            error "Failed: $script"
             return 1
         fi
     done

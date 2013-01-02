@@ -9,7 +9,7 @@ module Duck
     def initialize(options)
       @target = options[:target]
       @original_target = @target
-      @target_minimized = "#{@target}.min"
+      @target_min = "#{@target}.min"
       @chroot_env = options[:env]
       @initrd = options[:initrd]
       @no_minimize = options[:no_minimize]
@@ -18,8 +18,10 @@ module Duck
 
     def minimize_target
       log.info "Minimizing Target"
-      spawn ['cp', '-a', @target, @target_minimized]
-      @target = @target_minimized
+      spawn ['rm', '-rf', @target_min] if File.directory? @target_min
+      spawn ['cp', '-a', @target, @target_min]
+
+      @target = @target_min
 
       in_apt_get "clean"
       in_shell "rm -rf /var/lib/{apt,dpkg} /usr/share/{doc,man} /var/cache"

@@ -3,23 +3,24 @@
 # AutoDB is used to store duckinstaller variables.
 #
 
-import dbm
+import duck.db as duck_db
+import duck
+
 import argparse
 import urllib2
 import json
 import contextlib
 
-VERSION = "0.1.0"
-DEFAULT_DB = "/var/duckdb.dbm"
+VERSION = duck.__version_string__
 
 
 def update_db(function):
     def inner(ns):
-        with contextlib.closing(dbm.open(ns.db, "c")) as db:
-            for key, value in function(ns):
+        with ns.db.open() as S:
+            for key, value in function(S, ns):
                 if ns.ns:
                     key = "%s/%s" % (ns.ns, key)
-                db[key] = value
+                S.set(key, value)
 
         return 0
 
@@ -57,23 +58,18 @@ def read_json(ns, fd):
     doc = flatten_dict(doc)
 
     for key, value in doc.items():
-        if not isinstance(value, str):
-            continue
-        yield str(key), str(value)
+        yield key, value
 
 
 def action_get(ns):
-    with contextlib.closing(dbm.open(ns.db, "c")) as db:
-        ok = True
-
-        try:
-            value = db[ns.key]
-        except KeyError:
-            value = ns.default
+    with ns.db.open() as S:
+        value = S.get(ns.key, ns.default)
 
         if value is None:
             ok = False
             value = ""
+        else:
+            ok = True
 
         if ns.sh:
             print "DUCK_RETURN=\"%s\";" % (value,)
@@ -83,17 +79,25 @@ def action_get(ns):
         if not ok:
             return 1
 
+        if ns.raw:
+            value = repr(value)
+
         print value
 
     return 0
 
 
-def action_set(ns):
+@update_db
+def action_set(S, ns):
+    if ns.value == '-':
+        ns.value = sys.stdin.read()
+    if ns.json:
+        ns.value = json.loads(ns.value)
     yield ns.key, ns.value
 
 
 @update_db
-def action_cmdline(ns):
+def action_cmdline(S, ns):
     with open(ns.path) as f:
         cmdline = f.read()
 
@@ -111,7 +115,7 @@ def action_cmdline(ns):
 
 
 @update_db
-def action_file(ns):
+def action_file(S, ns):
     with open(ns.path) as fd:
         if ns.json:
             generator = read_json(ns, fd)
@@ -123,7 +127,7 @@ def action_file(ns):
 
 
 @update_db
-def action_url(ns):
+def action_url(S, ns):
     with contextlib.closing(urllib2.urlopen(ns.url)) as fd:
         if ns.json:
             generator = read_json(ns, fd)
@@ -135,9 +139,9 @@ def action_url(ns):
 
 
 def action_list(ns):
-    with contextlib.closing(dbm.open(ns.db, "c")) as db:
-        for key in db.keys():
-            print key, db[key]
+    with ns.db.open() as S:
+        for key in S.keys():
+            print key, repr(S.get(key))
 
 
 def main(args):
@@ -149,7 +153,7 @@ def main(args):
     parser.add_argument(
         "--db",
         metavar="<path>",
-        default=DEFAULT_DB)
+        default=None)
 
     parser.add_argument(
         "--ns",
@@ -166,9 +170,17 @@ def main(args):
                                   "evaluable string"),
                             default=False,
                             action='store_true')
+    get_parser.add_argument("--raw",
+                            help=("Output raw (repr) value"),
+                            default=False,
+                            action='store_true')
     get_parser.set_defaults(action=action_get)
 
     set_parser = parsers.add_parser("set", help="Set a value")
+    set_parser.add_argument("--json",
+                            help="treat argument as json",
+                            default=False,
+                            action='store_true')
     set_parser.add_argument("key")
     set_parser.add_argument("value")
     set_parser.set_defaults(action=action_set)
@@ -201,6 +213,7 @@ def main(args):
     url_parser.set_defaults(action=action_url)
 
     ns = parser.parse_args(args)
+    ns.db = duck_db.DB(path=ns.db)
     return ns.action(ns)
 
 if __name__ == "__main__":
