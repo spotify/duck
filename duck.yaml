@@ -24,6 +24,8 @@ packages:
   - syslog-ng
   - udev
   - vim-tiny
+  - less
+  - strace
 
 files:
 # init file
