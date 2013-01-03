@@ -1,11 +1,7 @@
 #!/bin/bash
-
-set -e
-
+# vim: filetype=sh
 . /lib/libduck.sh
-
-a_get duck/target
-target="$ret"
+a_get_into target duck/target
 
 info "Removing policy-rc.d"
 

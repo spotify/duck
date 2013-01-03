@@ -1,11 +1,10 @@
 #!/bin/bash
-
 . /lib/libduck.sh
+a_get_into log duck/log "$DEFAULT_LOG"
+a_get_into error_command 'duck/error-command' "$DUCK_LOGIN"
+a_get_into error_command 'duck/success-command' "$DUCK_LOGIN"
 
 info "Duck Installer $DUCK_VERSION"
-
-a_get duck/log "$DEFAULT_LOG"
-log="$RET"
 
 if [[ -f $INSTALLER_STATUS ]]; then
     info "Not running installation, $INSTALLER_STATUS exists"
@@ -13,8 +12,10 @@ if [[ -f $INSTALLER_STATUS ]]; then
 fi
 
 info "Running installation, logging to $log and syslog"
-run_installer 2>&1 | tee -a $log | logger -t duckinstall -s
+
+if ! run_installer 2>&1 | tee -a $log | logger -t duckinstall -s; then
+    exec $error_command
+fi
 
 touch $INSTALLER_STATUS
-
-exec $DUCK_LOGIN
+exec $success_command

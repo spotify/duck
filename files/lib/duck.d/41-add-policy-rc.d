@@ -1,11 +1,7 @@
 #!/bin/bash
-
-set -e
-
+# vim: filetype=sh
 . /lib/libduck.sh
-
-a_get duck/target
-target="$ret"
+a_get_into target duck/target
 
 policy_rcd=$target/usr/sbin/policy-rc.d
 

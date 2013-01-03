@@ -36,28 +36,7 @@ error()   {
   invoke_hook log error "$@"
 }
 
-timeout_with() {
-    timeout=$1
-    title=$2
-
-    echo "$title $timeout,"
-
-    i=$timeout
-    while [[ $i -gt 1 ]]; do
-        i=$[ $i - 1 ]
-        sleep 1
-        echo "$i,"
-    done
-
-    sleep 1
-    echo "OK."
-
-    return 0
-}
-
-run_installer() {
-    duckdb set --json duck/hooks-enabled false
-
+setup_duckdb() {
     info "duckdb: Loading Static Variables"
 
     if [[ -f $DUCKDB_CONF ]]; then
@@ -74,10 +53,18 @@ run_installer() {
 
     if ! duckdb cmdline /proc/cmdline; then
         error "duckdb: Failed to load kernel arguments"
-        exit 1
+        return 1
     fi
 
+    # Time to enable hooks.
     duckdb set --json duck/hooks-enabled true
+    duckdb set --json duck/log-hook-enabled true
+}
+
+run_installer() {
+    if ! setup_duckdb; then
+        return 1
+    fi
 
     for script in /lib/duck.d/[0-9][0-9]-*; do
         [[ ! -x $script ]] && continue
@@ -94,13 +81,15 @@ run_installer() {
     return 0
 }
 
+# Run a command in the target environment.
+# required duckdb variables:
+#  - duck/target
 in_target() {
     # run chroot invocation inside of a subshell
     # this allows us to override some useful environment variables
     # at leisure.
 
-    a_get duck/target
-    target="$RET"
+    a_get_into target duck/target
 
     command="$@"
 
@@ -120,6 +109,17 @@ in_target() {
 
 
 # get single duckdb variable
+# exports the RET variable containing the value of the requested variable
+# or invokes 'exit 1' if it was unable to fetch the value from duckdb.
+#
+# a_get duck/mode
+# duck_mode="$RET"
+#
+# duckdb supprts the notion of default values, in that case, two arguments
+# should be provided, as follows.
+#
+# a_get duck/mode testing
+# duck_mode="$RET"
 a_get() {
     export DUCK_RETURN=""
     export DUCK_OK="no"
@@ -134,11 +134,19 @@ a_get() {
     export RET="$DUCK_RETURN"
 }
 
+# This function was introduced because the common idiom of assigning RET
+# resulted in code which was error prone.
+a_get_into() {
+    name=$1
+    shift
+    a_get "$@"
+    export "$name"="$RET"
+}
+
 # set single duckdb variable
 a_set() {
     eval $(duckdb set "$@");
 }
 
 # Dynamic Variables
-a_get duck/mode "testing"
-export DUCK_MODE="$RET"
+a_get_into DUCK_MODE duck/mode "testing"

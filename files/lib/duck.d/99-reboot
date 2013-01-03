@@ -1,8 +1,6 @@
 #!/bin/bash
-
-set -e
-
 . /lib/libduck.sh
+a_get_into reboot_enabled "reboot/enabled" "True"
 
 if [[ "$DUCK_MODE" == "testing" ]]; then
     warning "Not rebooting, duck/mode=testing"
@@ -11,5 +9,10 @@ fi
 
 info "Installation done, rebooting!"
 
-reboot
+if [[ "$reboot_enabled" == "True" ]]; then
+    reboot
+else
+    info "Not rebooting, reboot/enabled=$reboot_enabled"
+fi
+
 exit 0
