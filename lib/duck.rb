@@ -17,9 +17,8 @@ module Duck
 
   # environment to prevent tasks from being interactive.
   DEFAULT_SHELL = '/bin/bash'
-  FILES_DIR = 'files'
   CONFIG_NAME = 'duck.yaml'
-  CONFIG_ARRAYS = [:files, :packages, :transports, :preferences, :fixes, :services]
+  CONFIG_ARRAYS = [:files, :packages, :transports, :preferences, :fixes, :services, :sources]
 
   ACTTIONS = {
     :build => Duck::Build,
@@ -38,22 +37,20 @@ module Duck
     working_directory = Dir.pwd
 
     o[:temp] = File.join working_directory, 'tmp'
-    o[:keys_dir] = File.join working_directory, 'keys'
     o[:target] = File.join o[:temp], 'initrd'
     o[:initrd] = File.join o[:temp], 'initrd.gz'
     o[:gpg_homedir] = File.join o[:temp], 'gpg'
     o[:kernel] = File.join working_directory, 'vmlinuz'
     o[:no_minimize] = false
+    o[:append] = nil
     o[:keep_minimized] = false
-    o[:files] = []
-    o[:services] = []
-    o[:packages] = []
-    o[:transports] = []
-    o[:fixes] = []
-    o[:preferences] = []
     o[:shell] = DEFAULT_SHELL
-    o[:files_dir] = FILES_DIR
     o[:_configs] = []
+    o[:_roots] = []
+
+    CONFIG_ARRAYS.each do |array|
+      o[array] = []
+    end
 
     action_names = [:build, :pack]
 
@@ -90,6 +87,11 @@ module Duck
         o[:kernel] = path
       end
 
+      opts.on('-a <append>', '--append <append>',
+              'Specify kernel options to append') do |append|
+        o[:append] = append
+      end
+
       opts.on('-c <path>', '--config <path>',
               'Use the specified configuration path') do |path|
         o[:_configs] << path
@@ -111,8 +113,6 @@ module Duck
     unless args.empty?
       action_names = args.map{|a| a.to_sym}
     end
-
-    o[:bootstrap_status] = File.join o[:target], '.debootstrap'
 
     # add default configuration if none is specified.
     if o[:_configs].empty?
@@ -149,15 +149,19 @@ module Duck
       FileUtils.chmod 0700, o[:gpg_homedir]
     end
 
-    o[:_roots] = o[:_configs].map{|c| File.dirname c}
-
     o[:_configs].each do |config_path|
       log.info "Loading configuration from #{config_path}"
       config = deep_symbolize YAML.load_file(config_path)
+      root = File.dirname config_path
       # Special keys treated as accumulated arrays over all configurations.
-      CONFIG_ARRAYS.each{|n| o[n] += config.delete(n) || []}
+
+      CONFIG_ARRAYS.each do |n|
+        o[n] += (config.delete(n) || []).map{|i| [root, i]}
+      end
+
       # Merge (overwrite) the rest.
       o.merge! config
+      o[:_roots] << root
     end
   end
 

@@ -2,57 +2,43 @@ require 'fileutils'
 
 require 'duck/chroot_utils'
 require 'duck/logging'
+require 'duck/module_helper'
 
 module Duck
-  class StepError < Exception
-  end
-
   class Build
-    FIXES = 'fixes'
-    DEFAULT_TYPE = 'deb'
-    DEFAULT_COMPONENTS = ['main']
-    DEFAULT_SUITE = 'squeeze'
-
-    # define all the different steps involved.
-    STEPS = [
-      [false, :check_keyring],
-      [false, :bootstrap_tarball],
-      [false, :bootstrap_install],
-      [true, :bootstrap_configure],
-      [true, :bootstrap_end],
-      [true, :add_policy_rcd],
-      [true, :prepare_apt],
-      [true, :packages_install],
-      [true, :packages_configure],
-      [true, :files_copy],
-      [true, :configure_boot_services],
-      [true, :remove_policy_rcd],
-    ]
-
     include Logging
     include ChrootUtils
+    include ModuleHelper
+
+    FixesDir = 'fixes'
+    FilesDir = 'files'
+    KeysDir = 'keys'
+    BootstrapStatus = '.bootstrap'
+    DefaultSourceType = 'deb'
+    DefaultComponents = ['main']
+    DefaultSuite = 'squeeze'
 
     def initialize(options)
+      @_roots = options[:_roots]
       @target = options[:target]
       @temp = options[:temp]
-      @keys_dir = options[:keys_dir]
       @chroot_env = options[:env] || {}
       @packages = options[:packages] || []
-      @gpg_homedir = options[:gpg_homedir]
-      @bootstrap_status = options[:bootstrap_status]
-      @fixes = options[:fixes]
-      @files_dir = options[:files_dir]
-      @build_sources = options[:build_sources]
-      @main_sources = options[:main_sources]
+      @fixes = options[:fixes] || []
+      @sources = options[:sources]
       @transports = options[:transports]
       @bootstrap = validate_bootstrap options[:bootstrap]
       @keyring = validate_keyring options[:keyring]
       @files = validate_array [:from, :to], options[:files]
       @services = validate_array [:name], options[:services]
       @preferences = validate_array [:package, :pin, :priority], options[:preferences]
-      @_roots = options[:_roots]
-      @bootstrap_tarball = File.join @temp, @bootstrap[:tarball]
-      @target_fixes = File.join @target, FIXES
+
+      if @bootstrap[:tarball]
+        @bootstrap_tarball = File.join @temp, @bootstrap[:tarball]
+      end
+
+      @fixes_target = File.join @target, FixesDir
+      @bootstrap_status = File.join @target, BootstrapStatus
     end
 
     def validate_keyring(opts)
@@ -64,7 +50,7 @@ module Duck
 
     def validate_bootstrap(opts)
       raise "Missing bootstrap options" unless opts
-      opts[:suite] = default_suite unless opts[:suite]
+      opts[:suite] = DefaultSuite unless opts[:suite]
       return opts
     end
 
@@ -73,14 +59,49 @@ module Duck
     end
 
     def validate_array(keys, items)
-      items.each {|item| validate_item keys, item}
+      items.each {|root, item| validate_item keys, item}
+    end
+
+    def copy_fixes
+      FileUtils.mkdir_p @fixes_target unless File.directory? @fixes_target
+
+      @fixes.each do |root, fix_name|
+        source = File.join root, FixesDir, fix_name
+        target = File.join @fixes_target, fix_name
+
+        next unless File.file? source
+        next if File.file? target and File.mtime(source) > File.mtime(target)
+
+        log.debug "copying fix #{source} to #{target}"
+        FileUtils.cp source, target
+        FileUtils.chmod 0755, target
+      end
+    end
+
+    def clear_fixes
+      FileUtils.rm_rf @fixes_target
+    end
+
+    def run_fixes(stage)
+      return unless File.directory? @fixes_target
+
+      log.info "fixes: #{stage}"
+
+      @fixes.each do |root, fix_name|
+        log.debug "fix: #{fix_name} #{stage}"
+        executable = File.join '/', FixesDir, fix_name
+        exitcode = chroot [@target, executable, stage]
+        raise "fix failed: #{fix_name} #{stage}" if exitcode != 0
+      end
     end
 
     def check_keyring
+      return unless @keyring
+
       missing_keys = []
 
-      @keyring[:keys].each do |key|
-        key_path = File.join(@keys_dir, "#{key}.gpg")
+      (@keyring[:keys] || []).each do |key|
+        key_path = File.join KeysDir, "#{key}.gpg"
         next if File.file? key_path
         missing_keys << {:id => key, :path => key_path}
       end
@@ -96,21 +117,32 @@ module Duck
       raise StepError.new "Some required keys are missing from the keys directory"
     end
 
+    def bootstrap_options
+      opts = {
+        :mirror => @bootstrap[:mirror],
+        :extra => [
+          "--variant=minbase",
+        ] + (@bootstrap[:extra] || []),
+      }
+
+      unless @transports.empty?
+        transports = @transports.map{|r, t| "apt-transport-#{t}"}
+        log.debug "Installing extra transports: #{transports.join ' '}"
+        opts[:extra] << '--include' << transports.join(',')
+      end
+
+      opts
+    end
+
     def bootstrap_tarball
       return if File.file? @bootstrap_status
-      return unless @bootstrap[:tarball]
+      return unless @bootstrap_tarball
       return if File.file? @bootstrap_tarball
 
       log.debug "Building tarball: #{@bootstrap_tarball}"
 
-      opts = {
-        :mirror => @bootstrap[:mirror],
-        :extra => [
-          "--make-tarball=#{@bootstrap_tarball}",
-          "--variant=minbase",
-        ],
-      }
-
+      opts = bootstrap_options
+      opts[:extra] << '--make-tarball' << @bootstrap_tarball
       debootstrap @bootstrap[:suite], @target, opts
     end
 
@@ -119,17 +151,13 @@ module Duck
 
       log.debug "Early stage bootstrap in #{@target}"
 
-      opts = {
-        :mirror => @bootstrap[:mirror],
-        :extra => [
-          "--foreign",
-          "--variant=minbase",
-        ],
-      }
+      opts = bootstrap_options
 
-      if @bootstrap[:tarball]
-        opts[:extra] << "--unpack-tarball=#{@bootstrap_tarball}"
+      if @bootstrap_tarball
+        opts[:extra] << "--unpack-tarball" << @bootstrap_tarball
       end
+
+      opts[:extra] << "--foreign"
 
       debootstrap @bootstrap[:suite], @target, opts
     end
@@ -143,32 +171,6 @@ module Duck
 
     def bootstrap_end
       FileUtils.touch @bootstrap_status
-    end
-
-    def fixes(stage)
-      log.info "fixes: #{stage}"
-
-      FileUtils.mkdir_p @target_fixes unless File.directory? @target_fixes
-
-      @_roots.each do |root|
-        @fixes.each do |fix_name|
-          source = File.join root, FIXES, fix_name
-          target = File.join @target_fixes, fix_name
-          executable = File.join '/', FIXES, fix_name
-
-          next unless File.file? source
-
-          unless File.file? target and File.mtime(source) <= File.mtime(target)
-            log.debug "copying #{source} -> #{target}"
-            FileUtils.cp source, target
-            FileUtils.chmod 0755, target
-          end
-
-          log.debug "fix: #{fix_name} #{stage}"
-          exitcode = chroot [@target, executable, stage]
-          raise "fix failed: #{fix_name} #{stage}" if exitcode != 0
-        end
-      end
     end
 
     def read_file(source_dir, file)
@@ -191,8 +193,8 @@ module Duck
       return if @files.empty?
 
       @_roots.each do |root|
-        @files.each do |file|
-          source_dir = File.join root, @files_dir
+        @files.each do |local_root, file|
+          source_dir = File.join root, FilesDir
           file = read_file(source_dir, file)
           next if file.nil?
 
@@ -226,11 +228,13 @@ module Duck
 
       options = options.map{|option| ['-o', option]}.flatten
 
+      packages = @packages.map{|r, p| p}
+
       log.debug "Installing Packages"
-      packages_repr = @packages.join ' '
+      packages_repr = packages.join ' '
 
       log.debug "Installing Packages: #{packages_repr}"
-      in_apt_get *(options + ['install', '--'] + @packages)
+      in_apt_get *(options + ['install', '--'] + packages)
     end
 
     def packages_configure
@@ -238,7 +242,7 @@ module Duck
       in_dpkg '--configure', '-a'
     end
 
-    def sources_list(sources, name)
+    def sources_list(name, sources)
       sources_dir = File.join @target, 'etc', 'apt', 'sources.list.d'
       sources_list = File.join sources_dir, "#{name}.list"
 
@@ -246,8 +250,8 @@ module Duck
 
       File.open(sources_list, 'w', 0644) do |f|
         sources.each do |source|
-          type = source[:type] || DEFAULT_TYPE
-          components = source[:components] || DEFAULT_COMPONENTS
+          type = source[:type] || DefaultSourceType
+          components = source[:components] || DefaultComponents
           suite = source[:suite]
           url = source[:url]
 
@@ -269,7 +273,7 @@ module Duck
       File.open(apt_preferences, 'w', 0644) do |f|
         f.write "# generated by duck\n"
 
-        @preferences.each do |pin|
+        @preferences.each do |root, pin|
           f.write "Package: #{pin[:package]}\n"
           f.write "Pin: #{pin[:pin]}\n"
           f.write "Pin-Priority: #{pin[:priority]}\n"
@@ -281,31 +285,20 @@ module Duck
     def add_apt_keys
       log.debug "Adding APT keys"
 
-      @keyring[:keys].each do |key|
+      (@keyring[:keys] || []).each do |key|
         log.debug "Adding key'#{key}'"
-        key_path = File.join @keys_dir, "#{key}.gpg"
+        key_path = File.join KeysDir, "#{key}.gpg"
 
-        File.open(key_path, 'r') do |f|
+        File.open key_path, 'r' do |f|
           in_apt_key ['add', '-'], {:input_file => f}
         end
       end
     end
 
     def prepare_apt
-      raise "Required section 'build_sources' missing" unless @build_sources
+      add_apt_keys if @keyring
 
-      add_apt_keys
-
-      sources_list @build_sources, 'build'
-
-      unless @transports.empty?
-        transports = @transports.map{|t| "apt-transport-#{t}"}
-        log.debug "Installing extra transports: #{transports.join ' '}"
-        in_apt_get 'update'
-        in_apt_get 'install', *transports
-      end
-
-      sources_list @main_sources, 'main' if @main_sources
+      sources_list 'main', @sources.map{|r,s| s}
       in_apt_get 'update'
       write_apt_preferences
     end
@@ -351,7 +344,7 @@ module Duck
       disable_runlevel '2'
       disable_runlevel 'S'
 
-      @services.each do |service|
+      @services.each do |root, service|
         args = [service[:name]]
         args += ['start'] + service[:start].split(' ') if service[:start]
         args += ['stop'] + service[:stop].split(' ') if service[:stop]
@@ -359,27 +352,33 @@ module Duck
       end
     end
 
-    def execute
-      STEPS.each do |run_fixes, step_method|
-        name = step_method.to_s.gsub '_', '-'
+    # define all the different steps involved.
+    step :check_keyring, :disable_hooks => true
+    step :bootstrap_tarball, :disable_hooks => true
+    step :bootstrap_install, :disable_hooks => true
+    step :copy_fixes, :disable_hooks => true
+    step :bootstrap_configure
+    step :bootstrap_end
+    step :add_policy_rcd
+    step :prepare_apt
+    step :packages_install
+    step :packages_configure
+    step :files_copy
+    step :configure_boot_services
+    step :remove_policy_rcd
+    step :clear_fixes, :disable_hooks => true
 
-        log.info "#{name}: running"
-        fixes "pre-#{name}" if run_fixes
+    def pre_hook(name)
+        run_fixes "pre-#{name}"
+    end
 
-        begin
-          self.method(step_method).call
-        rescue StepError
-          log.error "#{name}: #{$!}"
-          return
-        end
+    def post_hook(name)
+        run_fixes "post-#{name}"
+    end
 
-        log.info "#{name}: done"
-        fixes "post-#{name}" if run_fixes
-      end
-
-      # run fixes for finalizing the setup.
-      fixes "final"
-      return 0
+    def final_hook
+      run_fixes "final"
+      clear_fixes
     end
   end
 end

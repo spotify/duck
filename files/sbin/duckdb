@@ -27,7 +27,7 @@ def update_db(function):
     return inner
 
 
-def read_config(ns, fd):
+def parse_text(fd):
     for line in fd:
         line = line.strip()
 
@@ -52,13 +52,46 @@ def flatten_dict(doc, keys=[]):
     return result
 
 
-def read_json(ns, fd):
+def parse_json(fd):
     doc = json.load(fd)
-
-    doc = flatten_dict(doc)
 
     for key, value in doc.items():
         yield key, value
+
+
+def parse_cmdline(fd):
+    cmdline = fd.read()
+
+    for c in cmdline.split(" "):
+        c = c.strip()
+
+        if not c or '=' not in c:
+            continue
+
+        key, value = c.split("=", 2)
+        yield key, value
+
+
+def read_dict(mode, fd):
+    if mode == 'cmdline':
+        return parse_cmdline(fd)
+
+    if mode == 'json':
+        return parse_json(fd)
+
+    if mode == 'text':
+        return parse_text(fd)
+
+    raise Exception("Unknown file mode: {0}".format(mode))
+
+
+def read(ns, fd):
+    value = dict(read_dict(ns.mode, fd))
+
+    if ns.flatten:
+        return flatten_dict(value)
+
+    return value
 
 
 def action_get(ns):
@@ -89,52 +122,20 @@ def action_get(ns):
 
 @update_db
 def action_set(S, ns):
-    if ns.value == '-':
-        ns.value = sys.stdin.read()
     if ns.json:
-        ns.value = json.loads(ns.value)
-    yield ns.key, ns.value
+        value = json.loads(ns.value)
+    elif ns.value == '-':
+        value = sys.stdin.read()
+    else:
+        value = ns.value
 
-
-@update_db
-def action_cmdline(S, ns):
-    with open(ns.path) as f:
-        cmdline = f.read()
-
-    for c in cmdline.split(" "):
-        c = c.strip()
-
-        if not c:
-            continue
-
-        if '=' not in c:
-            continue
-
-        key, value = c.split("=", 2)
-        yield key, value
-
-
-@update_db
-def action_file(S, ns):
-    with open(ns.path) as fd:
-        if ns.json:
-            generator = read_json(ns, fd)
-        else:
-            generator = read_config(ns, fd)
-
-        for key, value in generator:
-            yield key, value
+    yield ns.key, value
 
 
 @update_db
 def action_url(S, ns):
     with contextlib.closing(urllib2.urlopen(ns.url)) as fd:
-        if ns.json:
-            generator = read_json(ns, fd)
-        else:
-            generator = read_config(ns, fd)
-
-        for key, value in generator:
+        for key, value in read(ns, fd).items():
             yield key, value
 
 
@@ -188,29 +189,19 @@ def main(args):
     list_parser = parsers.add_parser("list", help="List all values")
     list_parser.set_defaults(action=action_list)
 
-    cmdline_parser = parsers.add_parser(
-        "cmdline",
-        help="Read values from a /proc/cmdline style file")
-    cmdline_parser.add_argument("path")
-    cmdline_parser.set_defaults(action=action_cmdline)
-
-    file_parser = parsers.add_parser(
-        "file",
-        help="Read values from a file")
-    file_parser.add_argument("path")
-    file_parser.add_argument("--json",
-                             help="treat input as a json document",
-                             default=False,
-                             action='store_true')
-    file_parser.set_defaults(action=action_file)
-
-    url_parser = parsers.add_parser("url", help="Fetch values from an url")
-    url_parser.add_argument("url")
-    url_parser.add_argument("--json",
-                            help="treat input as a json document",
-                            default=False,
-                            action='store_true')
-    url_parser.set_defaults(action=action_url)
+    url_parser = parsers.add_parser("url",
+                                    help="Read values from an url")
+    url_parser.add_argument("url", help="Fetch values from specified url")
+    url_parser.add_argument("--json", dest='mode',
+                            help="Treat input as a json document",
+                            action='store_const', const='json')
+    url_parser.add_argument("--cmdline", dest='mode',
+                            help="Treat input as a /proc/cmdline file",
+                            action='store_const', const='cmdline')
+    url_parser.add_argument("--flatten",
+                            help="Flatten a nested dictionary",
+                            default=False, action='store_true')
+    url_parser.set_defaults(action=action_url, mode='file')
 
     ns = parser.parse_args(args)
     ns.db = duck_db.DB(path=ns.db)

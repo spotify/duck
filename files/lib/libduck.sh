@@ -41,17 +41,17 @@ setup_duckdb() {
 
     if [[ -f $DUCKDB_CONF ]]; then
       info "duckdb: Loading $DUCKDB_CONF"
-      duckdb file $DUCKDB_CONF
+      duckdb url file://$DUCKDB_CONF
     fi
 
     if [[ -f $DUCKDB_JSON ]]; then
       info "duckdb: Loading $DUCKDB_JSON"
-      duckdb file --json $DUCKDB_JSON
+      duckdb url --json file://$DUCKDB_JSON
     fi
 
     info "duckdb: Loading /proc/cmdline"
 
-    if ! duckdb cmdline /proc/cmdline; then
+    if ! duckdb url --cmdline file:///proc/cmdline; then
         error "duckdb: Failed to load kernel arguments"
         return 1
     fi

@@ -9,6 +9,7 @@ module Duck
       @target = options[:target]
       @kernel = options[:kernel]
       @initrd = options[:initrd]
+      @append = options[:append]
       raise "No kernel specified" unless @kernel
       raise "Specified kernel does not exist: #{@kernel}" unless File.file? @kernel
       raise "No initrd specified" unless @initrd
@@ -16,10 +17,10 @@ module Duck
     end
 
     def execute
-      opts = [
-        '-serial', 'stdio', '-m', '1024',
-        '-append', 'console=ttyS0 duck/mode=testing',
-      ]
+      append = 'console=ttyS0 duck/mode=testing'
+      append = "#{append} #{@append}" if @append
+
+      opts = ['-serial', 'stdio', '-m', '1024', '-append', append]
 
       args = [
         '-kernel', @kernel,

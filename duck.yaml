@@ -1,5 +1,5 @@
 ---
-build_sources:
+sources:
   - url: "http://www.emdebian.org/grip"
     suite: squeeze
     components:
@@ -31,11 +31,12 @@ files:
 # init file
   - from: /*
     to: /
+  - from: /sbin/*
+    to: /sbin/
+    mode: 0755
 # configuration files
   - from: /etc/*
     to: /etc/
-  - from: /etc/network/*
-    to: /etc/network/
   - from: /etc/dhclient-exit-hooks.d/*
     to: /etc/dhcp/dhclient-exit-hooks.d/
     mode: 0755
@@ -44,10 +45,6 @@ files:
     to: /lib/
   - from: /lib/python-duck/duck/*
     to: /lib/python-duck/duck/
-# duck applications
-  - from: /sbin/*
-    to: /sbin/
-    mode: 0755
 # installation steps
   - from: /lib/duck.d/*
     to: /lib/duck.d/
