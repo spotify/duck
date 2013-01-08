@@ -2,7 +2,7 @@
 . /lib/libduck.sh
 a_get_into log duck/log "$DEFAULT_LOG"
 a_get_into error_command 'duck/error-command' "$DUCK_LOGIN"
-a_get_into error_command 'duck/success-command' "$DUCK_LOGIN"
+a_get_into success_command 'duck/success-command' "$DUCK_LOGIN"
 
 info "Duck Installer $DUCK_VERSION"
 
