@@ -22,4 +22,7 @@ if ! dhclient eth0; then
     exit 1
 fi
 
+# Set hostname from DHCP
+a_set hostname $(hostname)
+
 exit 0
