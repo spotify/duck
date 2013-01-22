@@ -1,0 +1,9 @@
+#!/bin/bash
+. /lib/libduck.sh
+a_get_into hostname hostname
+a_get_into target duck/target
+
+info "duckdb: Setting hostname in target"
+echo $hostname > $target/etc/hostname
+
+exit 0
