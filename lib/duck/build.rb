@@ -13,6 +13,7 @@ module Duck
     FixesDir = 'fixes'
     FilesDir = 'files'
     KeysDir = 'keys'
+    KeysRingsDir = 'keyrings'
     BootstrapStatus = '.bootstrap'
     DefaultSourceType = 'deb'
     DefaultComponents = ['main']
@@ -129,6 +130,16 @@ module Duck
         transports = @transports.map{|r, t| "apt-transport-#{t}"}
         log.debug "Installing extra transports: #{transports.join ' '}"
         opts[:extra] << '--include' << transports.join(',')
+      end
+
+      if @bootstrap[:keyringfile]
+        key_path = File.join KeysRingsDir, "#{@bootstrap[:keyringfile]}"
+
+        if File.file? key_path
+          opts[:extra] << '--keyring' << key_path
+        else
+          log.error "Can't find key #{@bootstrap[:keyring]}"
+        end
       end
 
       opts
