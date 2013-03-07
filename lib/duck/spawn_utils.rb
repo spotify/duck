@@ -51,7 +51,7 @@ module SpawnUtils
     exit_status = $?.exitstatus
 
     if exit_status != 0
-      raise ExitError.new "#{repr}: Subprocess returned non-zero exit status", exit_status
+      raise ExitError.new "#{repr}: Subprocess returned non-zero exit status #{exit_status}"
     end
 
     exit_status
