@@ -22,6 +22,8 @@ if ! dhclient eth0; then
     exit 1
 fi
 
+info "network: eth0: link up"
+
 # Set hostname from DHCP
 a_set hostname $(hostname)
 
