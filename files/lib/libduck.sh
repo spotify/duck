@@ -131,7 +131,7 @@ a_get() {
         exit 1
     fi
 
-    export RET="$DUCK_RETURN"
+    export RET=$DUCK_RETURN
 }
 
 # This function was introduced because the common idiom of assigning RET

@@ -105,7 +105,7 @@ def action_get(ns):
             ok = True
 
         if ns.sh:
-            print "DUCK_RETURN=\"%s\";" % (value,)
+            print "DUCK_RETURN=\'%s\';" % (value,)
             print "DUCK_OK=\"%s\"" % ("yes" if ok else "no",)
             return 0
 
