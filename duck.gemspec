@@ -5,11 +5,11 @@ $:.unshift lib unless $:.include?(lib)
 require 'duck/version'
  
 Gem::Specification.new do |s|
-  s.name        = "duck"
+  s.name        = "duck-installer"
   s.version     = Duck::VERSION
   s.platform    = Gem::Platform::RUBY
-  s.authors     = ["Carl Lerche", "Yehuda Katz", "André Arko"]
-  s.email       = ["carlhuda@engineyard.com"]
+  s.authors     = ["John-John Tedro", "Nathan Ferch", "Martin Parm"]
+  s.email       = ["johnjohn.tedro@gmail.com"]
   s.homepage    = "http://github.com/udoprog/duck"
   s.summary     = "Tool for generating a minimalistic initramfs installer system"
   s.description = "Duck takes a configuration and generates a bootable initramfs that gives over to a minimalistic installation environment based on (em)debian."
