@@ -9,6 +9,7 @@ require 'duck/build'
 require 'duck/enter'
 require 'duck/pack'
 require 'duck/qemu'
+require 'duck/version'
 
 module Duck
   class << self
@@ -104,6 +105,11 @@ module Duck
 
       opts.on('-h', '--help', 'Show this message') do
         puts opts
+        return nil
+      end
+
+      opts.on('-v', '--version', 'Show version') do
+        puts "duck: version #{VERSION}"
         return nil
       end
     end
