@@ -27,7 +27,7 @@ Duck has two steps in creating an initrd.
 setup - Setup base configuration.
 
 build - Build the base system.
-pack - Pack the resulting initrd.gz
+pack - Pack the resulting initrd.img
 
 For testing/tweaking there are two other commands available.
 
