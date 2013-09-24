@@ -21,7 +21,7 @@ module Duck
   CONFIG_NAME = 'duck.yaml'
   CONFIG_ARRAYS = [:files, :packages, :transports, :preferences, :fixes, :services, :sources]
 
-  ACTTIONS = {
+  ACTIONS = {
     :build => Duck::Build,
     :enter => Duck::Enter,
     :pack => Duck::Pack,
@@ -57,6 +57,14 @@ module Duck
 
     opts = OptionParser.new do |opts|
       opts.banner = 'Usage: duck [action] [options]'
+
+      opts.separator "Actions:"
+
+      ACTIONS.each do |k, klass|
+        opts.separator "    #{k}: #{klass.doc}"
+      end
+
+      opts.separator "Options:"
 
       opts.on('-t <dir>', '--target <dir>',
               'Build in the specified target directory') do |dir|
@@ -177,7 +185,7 @@ module Duck
     prepare_options o
 
     action_names.each do |action_name|
-      action_class = ACTTIONS[action_name]
+      action_class = ACTIONS[action_name]
 
       if action_class.nil?
         log.error "No such action: #{action_name}"

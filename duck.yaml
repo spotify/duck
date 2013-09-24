@@ -68,18 +68,20 @@ services:
     start: '00 2 3 4 5'
     stop: '00 0 1 6'
 
+# debootstrap mirror
+bootstrap:
+  mirror: "http://www.emdebian.org/grip/"
+  suite: 'squeeze'
+  tarball: 'packages.tar'
+  extra:
+    - '--no-check-certificate'
+    - '--variant=minbase'
+  keyringfile:
+    - 'emdebian-archive-keyring.gpg'
+
 keyring:
   keyserver: "subkeys.pgp.net"
   keys:
 # debian archive keys
     - "473041FA"
     - "B98321F9"
-# puppetlabs
-    - "4BD6EC30"
-# other debian keys for older archives
-    - "30E974EE"
-    - "46925553"
-    - "55BE302B"
-    - "65FFB764"
-    - "6D849617"
-    - "97BB3B58"

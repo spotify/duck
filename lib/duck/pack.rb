@@ -6,6 +6,10 @@ module Duck
     include ChrootUtils
     include Logging
 
+    def self.doc
+      "Pack the chroot into an archive"
+    end
+
     def initialize(options)
       @target = options[:target]
       @original_target = @target

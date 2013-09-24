@@ -6,6 +6,10 @@ module Duck
     include ChrootUtils
     include Logging
 
+    def self.doc
+      "Enter the build chroot"
+    end
+
     def initialize(options)
       @target = options[:target]
       @shell = options[:shell]

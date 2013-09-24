@@ -5,6 +5,10 @@ module Duck
     include SpawnUtils
     include Logging
 
+    def self.doc
+      "Spawn a qemu instance using the packed image"
+    end
+
     def initialize(options)
       @target = options[:target]
       @kernel = options[:kernel]

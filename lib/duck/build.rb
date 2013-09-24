@@ -10,6 +10,10 @@ module Duck
     include ChrootUtils
     include ModuleHelper
 
+    def self.doc
+      "Build the chroot"
+    end
+
     FixesDir = 'fixes'
     FilesDir = 'files'
     KeysDir = 'keys'
@@ -330,12 +334,14 @@ module Duck
       end
     end
 
+    # Remove the policy-rc.d from within the chroot.
     def remove_policy_rcd
       policy_rcd = File.join @target, 'usr', 'sbin', 'policy-rc.d'
       log.debug "Removing Policy: #{policy_rcd}"
       FileUtils.rm_f policy_rcd
     end
 
+    # Completely disable the specified runlevel.
     def disable_runlevel(runlevel)
       runlevel_dir = File.join @target, 'etc', "rc#{runlevel}.d"
       raise "No such runlevel: #{runlevel}" unless File.directory? runlevel_dir
@@ -351,6 +357,8 @@ module Duck
       end
     end
 
+    # Make sure that the specified boot service (and only those specified) are
+    # enabled.
     def configure_boot_services
       disable_runlevel '2'
       disable_runlevel 'S'
