@@ -11,6 +11,7 @@ files:
 # init file
   - from: /*
     to: /
+    mode: 0755
   - from: /sbin/*
     to: /sbin/
     mode: 0755
@@ -23,6 +24,7 @@ files:
 # installer library
   - from: /lib/libduck.sh
     to: /lib/
+    mode: 0755
   - from: /lib/python-duck/duck/*
     to: /lib/python-duck/duck/
 # installation steps
