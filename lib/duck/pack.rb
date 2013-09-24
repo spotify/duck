@@ -18,6 +18,7 @@ module Duck
       @initrd = options[:initrd]
       @no_minimize = options[:no_minimize]
       @keep_minimized = options[:keep_minimized]
+      @strip = options[:strip]
     end
 
     def minimize_target
@@ -36,6 +37,10 @@ module Duck
       minimize_target unless @no_minimize
 
       Dir.chdir @target
+      if @strip
+        log.info "Stripping contents of #{@target}"
+        shell "find . -type f -exec strip --strip-unneeded -R .comment -R .note '{}' + >/dev/null 2>&1 || true"
+      end
       log.info "Packing #{@target} into #{@initrd}"
       shell "find . | cpio -o -H newc | lzma -9 > #{@initrd}"
 

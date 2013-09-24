@@ -48,6 +48,7 @@ module Duck
     o[:shell] = DEFAULT_SHELL
     o[:_configs] = []
     o[:_roots] = []
+    o[:strip] = false
 
     CONFIG_ARRAYS.each do |array|
       o[array] = []
@@ -109,6 +110,11 @@ module Duck
       opts.on('-s <shell>', '--shell <shell>',
               'Set the shell to use when chrooting') do |shell|
         o[:shell] = shell
+      end
+
+      opts.on('-x', '--strip', 'Strip files in the initrd') do
+        raise "No strip utility found." unless system("which strip >/dev/null")
+        o[:strip] = true
       end
 
       opts.on('-h', '--help', 'Show this message') do
