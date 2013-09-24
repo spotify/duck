@@ -24,7 +24,8 @@ module Duck
       @target = @target_min
 
       in_apt_get "clean"
-      in_shell "rm -rf /var/lib/{apt,dpkg} /usr/share/{doc,man} /var/cache"
+      in_shell "rm -rf /boot /usr/share/doc /var/cache/{apt,debconf}/*"
+      in_shell "find /var/lib/apt/lists/ -type f ! -name lock -delete"
     end
 
     def execute
