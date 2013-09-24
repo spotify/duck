@@ -1,14 +1,4 @@
 ---
-sources:
-  - url: "http://www.emdebian.org/grip"
-    suite: squeeze
-    components:
-      - main
-  - url: "http://ftp.se.debian.org/debian"
-    suite: squeeze
-    components:
-      - main
-
 packages:
   - isc-dhcp-client
   - syslog-ng
