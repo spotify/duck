@@ -6,12 +6,14 @@ then
         return
 fi
 
-hostname=$(host $new_ip_address | cut -d ' ' -f 5)
-hostname=${hostname%*.}
-echo $hostname > /etc/hostname
+if [ ! -z $new_host_name ] ; then
+    hn="$new_host_name"
+    [ ! -z $new_domain_name ] && hn="$hn.$new_domain_name"
 
-# update the hostname
-hostname $hostname
+    # update the hostname
+    echo $hn > /etc/hostname
+    hostname $hn
 
-# restart syslog to use the correct hostname.
-invoke-rc.d syslog-ng restart
+    # restart syslog to use the correct hostname.
+    invoke-rc.d syslog-ng restart
+fi
