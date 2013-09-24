@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo "Invocing INIT"
+echo "Invoking INIT"
 
 exec /sbin/init
 

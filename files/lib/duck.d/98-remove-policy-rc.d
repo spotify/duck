@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # vim: filetype=sh
 . /lib/libduck.sh
 a_get_into target duck/target

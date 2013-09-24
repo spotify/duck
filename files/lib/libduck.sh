@@ -1,6 +1,3 @@
-#!/bin/bash
-set -e
-
 # static variables
 export DUCK_VERSION="0.1"
 export DUCKDB_CONF="/duckdb.conf"
@@ -18,7 +15,7 @@ invoke_hook() {
   name=$1
   shift
   path=$DUCK_HOOKS/$name
-  [[ -x $path ]] && ( $path "$@" || true )
+  [ -x $path ] && ( $path "$@" || true )
 }
 
 info()    {
@@ -39,12 +36,12 @@ error()   {
 setup_duckdb() {
     info "duckdb: Loading Static Variables"
 
-    if [[ -f $DUCKDB_CONF ]]; then
+    if [ -f "$DUCKDB_CONF" ]; then
       info "duckdb: Loading $DUCKDB_CONF"
       duckdb url file://$DUCKDB_CONF
     fi
 
-    if [[ -f $DUCKDB_JSON ]]; then
+    if [ -f "$DUCKDB_JSON" ]; then
       info "duckdb: Loading $DUCKDB_JSON"
       duckdb url --json file://$DUCKDB_JSON
     fi
@@ -67,7 +64,7 @@ run_installer() {
     fi
 
     for script in /lib/duck.d/[0-9][0-9]-*; do
-        [[ ! -x $script ]] && continue
+        [ ! -x "$script" ] && continue
 
         info "Running: $script"
         logger -t installer "running: $script"
@@ -126,7 +123,7 @@ a_get() {
 
     eval $(duckdb get --sh "$@")
 
-    if [[ "$DUCK_OK" != "yes" ]]; then
+    if [ "$DUCK_OK" != "yes" ]; then
         error "Missing required duckdb variable: $1"
         exit 1
     fi
