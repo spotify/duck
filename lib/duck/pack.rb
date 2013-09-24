@@ -32,7 +32,7 @@ module Duck
 
       Dir.chdir @target
       log.info "Packing #{@target} into #{@initrd}"
-      shell "find . | cpio -o -H newc | gzip > #{@initrd}"
+      shell "find . | cpio -o -H newc | lzma -9 > #{@initrd}"
 
       spawn ['rm', '-r', '-f', @target] unless @keep_minimized
 

@@ -39,7 +39,7 @@ module Duck
 
     o[:temp] = File.join working_directory, 'tmp'
     o[:target] = File.join o[:temp], 'initrd'
-    o[:initrd] = File.join o[:temp], 'initrd.gz'
+    o[:initrd] = File.join o[:temp], 'initrd.img'
     o[:gpg_homedir] = File.join o[:temp], 'gpg'
     o[:kernel] = File.join working_directory, 'vmlinuz'
     o[:no_minimize] = false

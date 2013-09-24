@@ -10,22 +10,11 @@ sources:
       - main
 
 packages:
-  - binutils
-  - python-argparse
-  - python
-  - grub2
-  - iproute
-  - bind9-host
   - isc-dhcp-client
-  - net-tools
-  - openssh-server
-  - pciutils
-  - psutils
   - syslog-ng
   - udev
   - vim-tiny
-  - less
-  - strace
+  - busybox
 
 files:
 # init file
@@ -62,6 +51,8 @@ fixes:
   - kernel-boot-fix
   # remove persistent udev rules.
   - clear-persistent-udev
+  # add busybox links
+  - busybox-links
 
 services:
   - name: hostname.sh
