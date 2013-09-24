@@ -47,30 +47,6 @@ fixes:
   # add busybox links
   - busybox-links
 
-services:
-  - name: hostname.sh
-    start: '00 S'
-  - name: mountkernfs.sh
-    start: '00 S'
-  - name: mountdevsubfs.sh
-    start: '00 S'
-  - name: udev
-    start: '00 S'
-  - name: syslog-ng
-    start: '00 2 3 4 5'
-    stop: '00 0 1 6'
-
-# debootstrap mirror
-bootstrap:
-  mirror: "http://www.emdebian.org/grip/"
-  suite: 'squeeze'
-  tarball: 'packages.tar'
-  extra:
-    - '--no-check-certificate'
-    - '--variant=minbase'
-  keyringfile:
-    - 'emdebian-archive-keyring.gpg'
-
 keyring:
   keyserver: "subkeys.pgp.net"
   keys:
