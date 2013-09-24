@@ -385,7 +385,6 @@ module Duck
     step :files_copy
     step :configure_boot_services
     step :remove_policy_rcd
-    step :clear_fixes, :disable_hooks => true
 
     def pre_hook(name)
         run_fixes "pre-#{name}"
