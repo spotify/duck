@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 . /lib/libduck.sh
 a_get_into target duck/target
 a_get_into suite debootstrap/suite
 a_get_into mirror debootstrap/mirror
 
-if [[ ! -d $target ]]; then
+if [ ! -d "$target" ]; then
     error "Target does not exist: $target"
     exit 1
 fi

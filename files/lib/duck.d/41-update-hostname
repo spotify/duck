@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 . /lib/libduck.sh
 a_get_into hostname hostname
 a_get_into target duck/target
