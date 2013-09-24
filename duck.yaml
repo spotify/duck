@@ -15,6 +15,7 @@ packages:
   - udev
   - vim-tiny
   - busybox
+  - python-argparse
 
 files:
 # init file
