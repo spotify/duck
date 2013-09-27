@@ -1,0 +1,15 @@
+Source: ruby-duck
+Section: ruby
+Priority: optional
+Maintainer: Jeremy Huntwork <jeremy@spotify.com>
+DM-Upload-Allowed: yes
+Build-Depends: debhelper (>= 7.0.50~), gem2deb (>= 0.2.3~)
+Standards-Version: 3.9.1
+Homepage: https://github.com/spotify/duck
+XS-Ruby-Versions: all
+
+Package: ruby-duck
+Architecture: all
+XB-Ruby-Versions: ${ruby:Versions}
+Depends: ${shlibs:Depends}, ${misc:Depends}, ruby | ruby-interpreter
+Description: A minimalist installer system generator
