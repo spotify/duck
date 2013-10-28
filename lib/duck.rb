@@ -67,6 +67,18 @@ module Duck
 
       opts.separator "Options:"
 
+      opts.on('-b <dir>', '--builddir <dir>',
+              'Use the following directory for the build ') do |dir|
+        unless dir =~ /^\//
+          dir=File.join working_directory+'/'+dir
+        end
+        puts "dir is #{dir}"
+        o[:temp] = dir
+        o[:target] = File.join o[:temp], 'initrd'
+        o[:initrd] = File.join o[:temp], 'initrd.img'
+        o[:gpg_homedir] = File.join o[:temp], 'gpg'
+      end
+
       opts.on('-t <dir>', '--target <dir>',
               'Build in the specified target directory') do |dir|
         o[:target] = dir
