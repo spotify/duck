@@ -12,12 +12,15 @@ module Duck
 
     def initialize(options)
       @target = options[:target]
+      @temp = options[:temp]
       @original_target = @target
       @target_min = "#{@target}.min"
       @chroot_env = options[:env]
       @initrd = options[:initrd]
+      @initrd_kernel = options[:initrd_kernel]
       @no_minimize = options[:no_minimize]
       @keep_minimized = options[:keep_minimized]
+      @keep_builddir = options[:keep_builddir]
       @strip = options[:strip]
     end
 
@@ -29,7 +32,7 @@ module Duck
       @target = @target_min
 
       in_apt_get "clean"
-      in_shell "rm -rf /boot /usr/share/doc /var/cache/{apt,debconf}/*"
+      in_shell "rm -rf /boot /usr/share/doc /var/cache/{apt,debconf}/* /vmlinuz"
       in_shell "find /var/lib/apt/lists/ -type f ! -name lock -delete"
     end
 
@@ -45,6 +48,11 @@ module Duck
       shell "find . | cpio -o -H newc | lzma -9 > #{@initrd}"
 
       spawn ['rm', '-r', '-f', @target] unless @keep_minimized
+
+      log.info "Copying kernel from initrd to #{@initrd_kernel}"
+      spawn ['cp', "#{@original_target}/vmlinuz", @initrd_kernel]
+
+      spawn ['rm', '-r', '-f', @temp] unless @keep_builddir
 
       log.info "Done building initramfs image: #{@initrd}"
     end

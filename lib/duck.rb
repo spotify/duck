@@ -39,12 +39,14 @@ module Duck
 
     o[:temp] = File.join working_directory, 'tmp'
     o[:target] = File.join o[:temp], 'initrd'
-    o[:initrd] = File.join o[:temp], 'initrd.img'
+    o[:initrd] = File.join working_directory, 'duck-initrd.img'
+    o[:initrd_kernel] = File.join working_directory, 'duck-vmlinuz'
     o[:gpg_homedir] = File.join o[:temp], 'gpg'
     o[:kernel] = File.join working_directory, 'vmlinuz'
     o[:no_minimize] = false
     o[:append] = nil
     o[:keep_minimized] = false
+    o[:keep_builddir]  = false
     o[:shell] = DEFAULT_SHELL
     o[:_configs] = []
     o[:_roots] = []
@@ -75,7 +77,6 @@ module Duck
         puts "dir is #{dir}"
         o[:temp] = dir
         o[:target] = File.join o[:temp], 'initrd'
-        o[:initrd] = File.join o[:temp], 'initrd.img'
         o[:gpg_homedir] = File.join o[:temp], 'gpg'
       end
 
@@ -94,14 +95,24 @@ module Duck
         o[:keep_minimized] = true
       end
 
+      opts.on('--keep-builddir',
+              'Keep the build directory around') do |dir|
+        o[:keep_builddir] = true
+      end
+
       opts.on('--debug',
               'Switch on debug logging') do |dir|
         Logging::set_level Logger::DEBUG
       end
 
       opts.on('-o <file>', '--output <file>',
-              'Output the resulting initrd in the specified path') do |path|
+              'Output initrd to <file>, default is ./duck-initrd.img') do |path|
         o[:initrd] = path
+      end
+
+      opts.on('-z <file>', '--vmlinuz <file>', 
+              'Copy the initrd\'s kernel to <file>, default is ./duck-vmlinuz') do |path|
+        o[:initrd_kernel] = path
       end
 
       opts.on('-k <kernel>', '--kernel <kernel>',
