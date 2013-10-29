@@ -107,17 +107,17 @@ module Duck
 
       opts.on('-o <file>', '--output <file>',
               'Output initrd to <file>, default is ./duck-initrd.img') do |path|
-        o[:initrd] = path
+        o[:initrd] = File.expand_path(path)
       end
 
       opts.on('-z <file>', '--vmlinuz <file>', 
               'Copy the initrd\'s kernel to <file>, default is ./duck-vmlinuz') do |path|
-        o[:initrd_kernel] = path
+        o[:initrd_kernel] = File.expand_path(path)
       end
 
       opts.on('-k <kernel>', '--kernel <kernel>',
               'Specify kernel to use when running qemu') do |path|
-        o[:kernel] = path
+        o[:kernel] = File.expand_path(path)
       end
 
       opts.on('-a <append>', '--append <append>',
@@ -127,7 +127,7 @@ module Duck
 
       opts.on('-c <path>', '--config <path>',
               'Use the specified configuration path') do |path|
-        o[:_configs] << path
+        o[:_configs] << File.expand_path(path)
       end
 
       opts.on('-s <shell>', '--shell <shell>',
