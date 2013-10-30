@@ -110,7 +110,7 @@ module Duck
         o[:initrd] = File.expand_path(path)
       end
 
-      opts.on('-z <file>', '--vmlinuz <file>', 
+      opts.on('-z <file>', '--vmlinuz <file>',
               'Copy the initrd\'s kernel to <file>, default is ./duck-vmlinuz') do |path|
         o[:initrd_kernel] = File.expand_path(path)
       end

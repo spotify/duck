@@ -1,3 +1,9 @@
+ruby-duck (0.3.0-1) precise; urgency=low
+
+  * add --builddir and --vmlinuz options
+
+ -- Nathan Ferch <nf@spotify.com>  Wed, 30 Oct 2013 17:46:45 +0000
+
 ruby-duck (0.2.1-1) precise; urgency=low
 
   * Initial release.
