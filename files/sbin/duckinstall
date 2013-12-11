@@ -4,6 +4,8 @@ a_get_into log duck/log "$DEFAULT_LOG"
 a_get_into error_command 'duck/error-command' "$DUCK_LOGIN"
 a_get_into success_command 'duck/success-command' "$DUCK_LOGIN"
 
+trap $error_command INT TERM
+
 info "Duck Installer $DUCK_VERSION"
 
 if [[ -f $INSTALLER_STATUS ]]; then
