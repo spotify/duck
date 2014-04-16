@@ -22,6 +22,7 @@ module Duck
       @keep_minimized = options[:keep_minimized]
       @keep_builddir = options[:keep_builddir]
       @strip = options[:strip]
+      @compression = options[:compression]
     end
 
     def minimize_target
@@ -45,7 +46,7 @@ module Duck
         shell "find . -type f -exec strip --strip-unneeded -R .comment -R .note '{}' + >/dev/null 2>&1 || true"
       end
       log.info "Packing #{@target} into #{@initrd}"
-      shell "find . | cpio -o -H newc | lzma -9 > #{@initrd}"
+      shell "find . | cpio -o -H newc | #{@compression} > #{@initrd}"
 
       spawn ['rm', '-r', '-f', @target] unless @keep_minimized
 
