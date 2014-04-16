@@ -1,3 +1,9 @@
+ruby-duck (0.4.1-1) precise; urgency=low
+
+  * Use install with explicit permissions to copy the kernel
+
+ -- Jeremy Huntwork <jeremy@spotify.com>  Wed, 16 Apr 2014 15:53:32 -0500
+
 ruby-duck (0.4.0-1) precise; urgency=low
 
   * add --compression option
