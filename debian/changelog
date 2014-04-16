@@ -1,3 +1,10 @@
+ruby-duck (0.4.0-1) precise; urgency=low
+
+  * add --compression option
+  * set some force defaults for files installed with dpkg --configure
+
+ -- Jeremy Huntwork <jeremy@spotify.com>  Wed, 16 Apr 2014 14:20:32 -0500
+
 ruby-duck (0.3.0-1) precise; urgency=low
 
   * add --builddir and --vmlinuz options
