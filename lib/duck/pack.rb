@@ -50,8 +50,8 @@ module Duck
 
       spawn ['rm', '-r', '-f', @target] unless @keep_minimized
 
-      log.info "Copying kernel from initrd to #{@initrd_kernel}"
-      spawn ['cp', "#{@original_target}/vmlinuz", @initrd_kernel]
+      log.info "Copying kernel from #{@original_target}/vmlinuz to #{@initrd_kernel}"
+      spawn ['install', '-m', '0644', "#{@original_target}/vmlinuz", @initrd_kernel]
 
       spawn ['rm', '-r', '-f', @temp] unless @keep_builddir
 
