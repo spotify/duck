@@ -47,6 +47,7 @@ module Duck
     o[:append] = nil
     o[:keep_minimized] = false
     o[:keep_builddir]  = false
+    o[:compression] = 'gzip'
     o[:shell] = DEFAULT_SHELL
     o[:_configs] = []
     o[:_roots] = []
@@ -98,6 +99,11 @@ module Duck
       opts.on('--keep-builddir',
               'Keep the build directory around') do |dir|
         o[:keep_builddir] = true
+      end
+
+      opts.on('--compression <cmd>',
+              'Specify the compression command to use, default is gzip') do |cmd|
+        o[:compression] = cmd
       end
 
       opts.on('--debug',
