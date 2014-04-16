@@ -254,7 +254,7 @@ module Duck
 
     def packages_configure
       log.debug "Configuring Packages"
-      in_dpkg '--configure', '-a'
+      in_dpkg '--configure', '-a', '--force-confdef', '--force-confold'
     end
 
     def sources_list(name, sources)
