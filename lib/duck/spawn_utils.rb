@@ -1,3 +1,5 @@
+require 'shellwords'
+
 module SpawnUtils
   SH = 'sh'
   DEBOOTSTRAP = 'debootstrap'
@@ -19,10 +21,8 @@ module SpawnUtils
     repr = args.map do |i|
       if i.nil?
         '<nil>'
-      elsif i.include? ' '
-        "\"#{i}\""
       else
-        i
+        Shellwords.escape i
       end
     end.join " "
 
