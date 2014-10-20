@@ -240,6 +240,7 @@ module Duck
       options << 'PackageManager::Configure=no'
       options << 'DPkg::ConfigurePending=false'
       options << 'DPkg::TriggersPending=false'
+      options << 'APT::Install-Recommends=false'
 
       options = options.map{|option| ['-o', option]}.flatten
 
