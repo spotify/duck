@@ -1,3 +1,9 @@
+ruby-duck (0.4.2-1) precise; urgency=low
+
+  * By default, don't install recommends dependencies
+
+ -- Jeremy Huntwork <jeremy@spotify.com>  Mon, 20 Oct 2014 17:23:25 -0500
+
 ruby-duck (0.4.1-1) precise; urgency=low
 
   * Use install with explicit permissions to copy the kernel
